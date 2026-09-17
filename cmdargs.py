@@ -720,8 +720,9 @@ class CmdArgs:
             os.makedirs(self.wave_dir_path)
         if not os.path.exists(self.log_dir_path):
             os.makedirs(self.log_dir_path)
-        if not os.path.exists(self.xa_log_dir_path):
-            os.makedirs(self.xa_log_dir_path)
+        if "XA_SIM" in self.usr_macros:
+            if not os.path.exists(self.xa_log_dir_path):
+                os.makedirs(self.xa_log_dir_path)
         if self.env_cfg.use_vmcomp_path:
             if not os.path.exists(self.env_cfg.vmcomp_path):
                 os.makedirs(self.env_cfg.vmcomp_path)
