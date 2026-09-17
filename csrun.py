@@ -688,7 +688,14 @@ class CSRun:
             os.makedirs(self.tb_pkg_dir)
 
     def setup_incremental_synopsys_sim_setup(self):
-        setup_file_path = "%s/synopsys_sim.setup" % self.cmd_args.comp_result_path
+        user_setup = os.environ.get("SYNOPSYS_SIM_SETUP")
+        if user_setup:
+            setup_file_path = user_setup
+            setup_dir = os.path.dirname(setup_file_path)
+            if not os.path.exists(setup_dir):
+                os.makedirs(setup_dir)
+        else:
+            setup_file_path = "%s/synopsys_sim.setup" % self.cmd_args.comp_result_path
         rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
         tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
         with open(setup_file_path, 'w') as f:
