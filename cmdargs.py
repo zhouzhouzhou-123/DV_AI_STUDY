@@ -675,8 +675,17 @@ class CmdArgs:
 
     
     def set_test_dirs(self):
+        # Determine simulation type prefix first (needed for path construction)
+        self.sim_type_prefix = "presim"
+        if self.is_post or self.is_dc or self.is_pr or self.is_pg:
+            self.sim_type_prefix = "postsim"
+        elif self.is_pa:
+            self.sim_type_prefix = "pasim"
+        elif self.is_xa:
+            self.sim_type_prefix = "xasim"
+
         if self.is_regr:
-            self.vmcomp_dir_path = "%s/comp_result/%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix)   
+            self.vmcomp_dir_path = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, self.test_name)   
             if self.is_comp:
                 self.sim_dir = self.vmcomp_dir_path
                 #self.coverage_result_path = self.vmcomp_dir_path
@@ -690,17 +699,8 @@ class CmdArgs:
         if not os.path.isdir(self.sim_dir):
             PubFunc.exit_err("sim_dir(%s) not exist!\n" % self.sim_dir)
 
-        # Determine simulation type prefix
-        self.sim_type_prefix = "presim"
-        if self.is_post or self.is_dc or self.is_pr or self.is_pg:
-            self.sim_type_prefix = "postsim"
-        elif self.is_pa:
-            self.sim_type_prefix = "pasim"
-        elif self.is_xa:
-            self.sim_type_prefix = "xasim"
-
-        # Keep first half as $SIM_DIR/comp_result, add sim_type_prefix as subdirectory
-        self.comp_result_path = "%s/comp_result/%s" % (self.sim_dir, self.sim_type_prefix)
+        # Keep first half as $SIM_DIR/comp_result, add sim_type_prefix and test_name as subdirectories
+        self.comp_result_path = "%s/comp_result/%s/comp_%s" % (self.sim_dir, self.sim_type_prefix, self.test_name)
 
         self.sim_result_path = "%s/result/%s" % (self.sim_dir, self.sim_type_prefix)
 
@@ -731,7 +731,7 @@ class CmdArgs:
         self.set_test_comp_sim_name()
         self.set_test_dirs()
         if self.is_vmnocomp:
-            self.simv_file_path = "%s/comp_result/%s/simv_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, self.comp_test_name)
+            self.simv_file_path = "%s/comp_result/%s/comp_%s/simv_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, self.test_name, self.comp_test_name)
         else:
             self.simv_file_path = "%s/simv_%s" % (self.comp_result_path, self.comp_test_name)
 

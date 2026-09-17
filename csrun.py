@@ -12,6 +12,7 @@ import pathlib
 import subprocess
 import hashlib
 import json
+import fcntl
 
 cur_scr_dir = os.path.dirname(os.path.abspath(__file__))
 pubfunc_dir = os.path.abspath(cur_scr_dir + "/../../pubfunc")
@@ -675,12 +676,26 @@ class CSRun:
 
     # ==================================================================
     # Incremental compile (incr_run) support
-    # RTL compiled to rtl_pkg/ (shared across testcases with same macros),
-    # TB compiled to tb_pkg/ (per-testcase). Signature-based change detection
-    # reuses the split-library mechanism for robust file change tracking.
+    # RTL compiled to rtl_pkg_shared/ (shared across all testcases),
+    # TB compiled to tb_pkg/ (per-testcase, no concurrent conflict).
+    # File locking (fcntl.flock) protects shared rtl_pkg from race conditions.
     # ==================================================================
+    def get_shared_rtl_pkg_dir(self):
+        # comp_result_path is $SIM_DIR/comp_result/$sim_type/comp_$test_name
+        # shared rtl_pkg should be at $SIM_DIR/comp_result/$sim_type/rtl_pkg_shared
+        return "%s/rtl_pkg_shared" % os.path.dirname(os.path.dirname(self.cmd_args.comp_result_path))
+
+    def lock_rtl_pkg(self, lock_file_path):
+        lock_file = open(lock_file_path, 'w')
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        return lock_file
+
+    def unlock_rtl_pkg(self, lock_file):
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        lock_file.close()
+
     def setup_incremental_paths(self):
-        self.rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
+        self.rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
         self.tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
         if not os.path.exists(self.rtl_pkg_dir):
             os.makedirs(self.rtl_pkg_dir)
@@ -688,16 +703,9 @@ class CSRun:
             os.makedirs(self.tb_pkg_dir)
 
     def setup_incremental_synopsys_sim_setup(self):
-        user_setup = os.environ.get("SYNOPSYS_SIM_SETUP")
-        if user_setup:
-            setup_file_path = user_setup
-            setup_dir = os.path.dirname(setup_file_path)
-            if not os.path.exists(setup_dir):
-                os.makedirs(setup_dir)
-        else:
-            setup_file_path = "%s/synopsys_sim.setup" % self.cmd_args.comp_result_path
-        rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
-        tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
+        setup_file_path = "%s/synopsys_sim.setup" % self.cmd_args.comp_result_path
+        rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
+        tb_pkg_dir = self.tb_pkg_dir
         with open(setup_file_path, 'w') as f:
             f.write("WORK > DEFAULT\n")
             f.write("DEFAULT: %s\n" % self.cmd_args.comp_result_path)
@@ -710,16 +718,21 @@ class CSRun:
 
     def check_rtl_modified_incr(self):
         rtl_sig = self.m_rtl_signature()
-        rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
-        if self.m_lib_up_to_date(rtl_pkg_dir, rtl_sig):
-            print("[INCR] RTL files unchanged")
-            return False
-        print("[INCR] RTL files modified, need recompile RTL")
-        return True
+        rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
+        lock_file_path = os.path.join(rtl_pkg_dir, '.rtl_lock')
+        lock_file = self.lock_rtl_pkg(lock_file_path)
+        try:
+            if self.m_lib_up_to_date(rtl_pkg_dir, rtl_sig):
+                print("[INCR] RTL files unchanged")
+                return False
+            print("[INCR] RTL files modified, need recompile RTL")
+            return True
+        finally:
+            self.unlock_rtl_pkg(lock_file)
 
     def check_tb_modified_incr(self):
         tb_sig = self.m_tb_signature()
-        tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
+        tb_pkg_dir = self.tb_pkg_dir
         if self.m_lib_up_to_date(tb_pkg_dir, tb_sig):
             print("[INCR] TB files unchanged")
             return False
@@ -727,7 +740,7 @@ class CSRun:
         return True
 
     def execute_vlogan_rtl_incr_command(self):
-        rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
+        rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
         rtl_command = self.build_vlogan_head()
         rtl_command = rtl_command.replace("${UVM_HOME}/src/uvm_pkg.sv ", "")
         rtl_command = re.sub(r'-Mdir=\S+\s*', '', rtl_command)
@@ -737,7 +750,7 @@ class CSRun:
         print("[INCR] Step 2/3: Compiling Verilog RTL to shared dir: %s" % rtl_pkg_dir)
         ret = self.execute_command_on_shell_with_return(rtl_command)
         if ret != 0:
-            print("[INCR] RTL compilation failed, removing rtl_pkg directory...")
+            print("[INCR] RTL compilation failed, removing rtl_pkg_shared directory...")
             shutil.rmtree(rtl_pkg_dir, ignore_errors=True)
             return False
         rtl_sig = self.m_rtl_signature()
@@ -750,7 +763,7 @@ class CSRun:
         if not os.path.isfile(self.env_cfg.pre_sim_duv_vhdl_flist):
             print("[INCR] VHDL filelist not found, skipping VHDL compilation")
             return True
-        rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
+        rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
         if self.cmd_args.is_xa:
             vhdlan_command = "%s vhdlan " % (self.env_cfg.xa_bsub_args)
         elif self.cmd_args.is_bsub:
@@ -764,7 +777,7 @@ class CSRun:
         print("[INCR] Step 1/3: Compiling VHDL RTL to shared dir: %s" % rtl_pkg_dir)
         ret = self.execute_command_on_shell_with_return(vhdlan_command)
         if ret != 0:
-            print("[INCR] VHDL RTL compilation failed, removing rtl_pkg directory...")
+            print("[INCR] VHDL RTL compilation failed, removing rtl_pkg_shared directory...")
             shutil.rmtree(rtl_pkg_dir, ignore_errors=True)
             return False
         return True
@@ -772,7 +785,7 @@ class CSRun:
     def copy_precompiled_libs(self):
         if not self.env_cfg.vendor_ip_precompiled_libs:
             return True
-        rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
+        rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
         if not os.path.exists(rtl_pkg_dir):
             os.makedirs(rtl_pkg_dir)
         for lib_name, lib_path in self.env_cfg.vendor_ip_precompiled_libs.items():
@@ -788,7 +801,7 @@ class CSRun:
         return True
 
     def execute_vlogan_tb_incr_command(self):
-        tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
+        tb_pkg_dir = self.tb_pkg_dir
         tb_command = self.build_vlogan_head()
         tb_command = re.sub(r'-Mdir=\S+\s*', '', tb_command)
         tb_command += "-work TB_LIB "
@@ -805,7 +818,9 @@ class CSRun:
         return True
 
     def clear_all_tb_packages_incr(self):
-        comp_base_dir = self.cmd_args.comp_result_path
+        # comp_result_path is $SIM_DIR/comp_result/$sim_type/comp_$test_name
+        # parent is $SIM_DIR/comp_result/$sim_type, which contains all comp_* directories
+        comp_base_dir = os.path.dirname(self.cmd_args.comp_result_path)
         if not os.path.exists(comp_base_dir):
             return
         for item in os.listdir(comp_base_dir):
@@ -821,8 +836,8 @@ class CSRun:
         self.setup_incremental_synopsys_sim_setup()
         rtl_changed = self.check_rtl_modified_incr()
         tb_changed = self.check_tb_modified_incr()
-        rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
-        tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
+        rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
+        tb_pkg_dir = self.tb_pkg_dir
         rtl_pkg_exists = os.path.exists(rtl_pkg_dir) and len(os.listdir(rtl_pkg_dir)) > 0
         tb_pkg_exists = os.path.exists(tb_pkg_dir) and len(os.listdir(tb_pkg_dir)) > 0
         need_full_compile = False
@@ -836,12 +851,18 @@ class CSRun:
             self.clear_all_tb_packages_incr()
             need_full_compile = True
         if need_full_compile:
-            if not self.execute_vhdlan_rtl_incr_command():
-                PubFunc.exit_err("[INCR] VHDL RTL compilation failed, please check errors")
-            if not self.copy_precompiled_libs():
-                PubFunc.exit_err("[INCR] Precompiled libs copy failed, please check errors")
-            if not self.execute_vlogan_rtl_incr_command():
-                PubFunc.exit_err("[INCR] Verilog RTL compilation failed, please check errors")
+            rtl_lock_file = None
+            try:
+                rtl_lock_file = self.lock_rtl_pkg(os.path.join(rtl_pkg_dir, '.rtl_lock'))
+                if not self.execute_vhdlan_rtl_incr_command():
+                    PubFunc.exit_err("[INCR] VHDL RTL compilation failed, please check errors")
+                if not self.copy_precompiled_libs():
+                    PubFunc.exit_err("[INCR] Precompiled libs copy failed, please check errors")
+                if not self.execute_vlogan_rtl_incr_command():
+                    PubFunc.exit_err("[INCR] Verilog RTL compilation failed, please check errors")
+            finally:
+                if rtl_lock_file:
+                    self.unlock_rtl_pkg(rtl_lock_file)
             rtl_compiled = True
             if not self.execute_vlogan_tb_incr_command():
                 PubFunc.exit_err("[INCR] TB compilation failed, please check errors")
@@ -1329,8 +1350,9 @@ class CSRun:
     def vmcomp_simv_link_vmcomp_path(self):
 
         brun_run_dir = os.environ.get("BRUN_RUN_DIR")
-        #self.postgroupscript = PostGroupScript(self.cmd_args.brun_group_dir,self.cmd_args.comp_result_path)
-        self.postgroupscript = PostGroupScript(brun_run_dir,self.cmd_args.comp_result_path)
+        vmcomp_comp_path = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.cmd_args.sim_type_prefix, self.cmd_args.test_name)
+        #self.postgroupscript = PostGroupScript(self.cmd_args.brun_group_dir,vmcomp_comp_path)
+        self.postgroupscript = PostGroupScript(brun_run_dir,vmcomp_comp_path)
         self.postgroupscript.run()
     def vm_postrun_dir_vdb_clean(self):
         postrunscript                       = PostRunScript()
@@ -1338,14 +1360,14 @@ class CSRun:
         postrunscript.brun_testname         = os.environ.get("BRUN_TEST_NAME")
         postrunscript.brun_seed             = os.environ.get("BRUN_SV_SEED")
         postrunscript.locallog_keep         = self.cmd_args.locallog_keep
-        postrunscript.vmcomp_path           = self.cmd_args.comp_result_path
+        postrunscript.vmcomp_path           = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.cmd_args.sim_type_prefix, self.cmd_args.test_name)
         postrunscript.brun_run_dir          = os.environ.get("BRUN_RUN_DIR")
         postrunscript.simv_test_pkg         = self.env_cfg.simv_test_pkg
         postrunscript.run()
 
     def delete_vmcomp_vdb(self):
         postrunscript                       = PostRunScript()
-        postrunscript.vmcomp_path           = self.cmd_args.comp_result_path
+        postrunscript.vmcomp_path           = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.cmd_args.sim_type_prefix, self.cmd_args.test_name)
         postrunscript.simv_test_pkg         = self.env_cfg.simv_test_pkg
         postrunscript.coverage_data_path    = "%s/coverage/coverage.vdb" % self.env_cfg.work_dir
         postrunscript.all_vdb_clean         = True
