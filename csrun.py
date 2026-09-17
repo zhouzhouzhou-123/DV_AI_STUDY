@@ -276,6 +276,8 @@ class CSRun:
         extra_files = []
         if self.env_cfg.pre_sim_duv_vhdl_flist:
             extra_files.append(self.env_cfg.pre_sim_duv_vhdl_flist)
+        if self.env_cfg.sva_bind_flist:
+            extra_files.append(self.env_cfg.sva_bind_flist)
         for lib_path in self.env_cfg.vendor_ip_precompiled_libs.values():
             extra_files.append(lib_path)
         return self.m_lib_signature(flist, extra_files)
@@ -755,6 +757,23 @@ class CSRun:
             print("[INCR] RTL compilation failed, removing rtl_pkg_shared directory...")
             shutil.rmtree(rtl_pkg_dir, ignore_errors=True)
             return False
+        
+        # Compile SVA bind files to RTL_LIB (must be in same library as target RTL)
+        if self.env_cfg.sva_bind_flist and os.path.isfile(self.env_cfg.sva_bind_flist):
+            sva_command = self.build_vlogan_head()
+            sva_command = re.sub(r'-Mdir=\S+\s*', '', sva_command)
+            sva_command = re.sub(r'-ntb_opts\s+\S+', '', sva_command)
+            sva_command += "+define+UVM_NO_RECORDING "
+            sva_command += "-work RTL_LIB "
+            sva_command += "-f %s " % self.env_cfg.sva_bind_flist
+            sva_command += "-l %s " % (self.cmd_args.comp_result_path + "vlogan_sva_bind.log")
+            print("[INCR] Step 2.5/3: Compiling SVA bind files to RTL_LIB...")
+            ret = self.execute_command_on_shell_with_return(sva_command)
+            if ret != 0:
+                print("[INCR] SVA bind compilation failed, removing rtl_pkg_shared directory...")
+                shutil.rmtree(rtl_pkg_dir, ignore_errors=True)
+                return False
+        
         rtl_sig = self.m_rtl_signature()
         self.m_write_lib_signature(rtl_pkg_dir, rtl_sig)
         return True
@@ -815,6 +834,24 @@ class CSRun:
                 return path
         return ''
 
+    def extract_incdir_from_flist(self, flist_path):
+        """Extract +incdir+ paths from a filelist file"""
+        incdirs = []
+        if not flist_path or not os.path.isfile(flist_path):
+            return incdirs
+        with open(flist_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('+incdir+'):
+                    incdir = line[len('+incdir+'):]
+                    incdir = os.path.expandvars(incdir)
+                    incdir = os.path.expanduser(incdir)
+                    if not os.path.isabs(incdir):
+                        incdir = os.path.abspath(os.path.join(os.path.dirname(flist_path), incdir))
+                    if os.path.isdir(incdir):
+                        incdirs.append(incdir)
+        return incdirs
+
     def execute_vlogan_tb_incr_command(self):
         tb_pkg_dir = self.tb_pkg_dir
         tb_command = self.build_vlogan_head()
@@ -826,6 +863,16 @@ class CSRun:
             uvm_pkg_path = self.get_uvm_pkg_path()
             if uvm_pkg_path:
                 tb_command += "%s " % uvm_pkg_path
+        # Extract +incdir+ from RTL filelist and add to TB compilation
+        # This is needed because TB files may include headers from RTL directories
+        rtl_flist = self.env_cfg.pre_sim_duv_flist
+        if self.cmd_args.is_post or self.cmd_args.is_dc or self.cmd_args.is_pr or self.cmd_args.is_pg:
+            rtl_flist = self.env_cfg.post_sim_duv_flist
+        elif self.cmd_args.is_pa:
+            rtl_flist = self.env_cfg.pa_sim_duv_flist
+        rtl_incdirs = self.extract_incdir_from_flist(rtl_flist)
+        for incdir in rtl_incdirs:
+            tb_command += "+incdir+%s " % incdir
         tb_command = self.build_vlogan_tb_flist(tb_command)
         tb_command += "-l %s " % self.cmd_args.vlogan_tb_log_file_path
         print("[INCR] Step 3/3: Compiling TB package...")
