@@ -800,11 +800,28 @@ class CSRun:
                 return False
         return True
 
+    def get_uvm_pkg_path(self):
+        for arg in self.env_cfg.vlogan_default_comp_args.split():
+            if 'uvm_pkg.sv' in arg:
+                path = os.path.expandvars(arg)
+                if os.path.isfile(path):
+                    return path
+        uvm_home = os.environ.get('UVM_HOME', '')
+        if uvm_home:
+            path = os.path.join(uvm_home, 'src', 'uvm_pkg.sv')
+            if os.path.isfile(path):
+                return path
+        return ''
+
     def execute_vlogan_tb_incr_command(self):
         tb_pkg_dir = self.tb_pkg_dir
         tb_command = self.build_vlogan_head()
         tb_command = re.sub(r'-Mdir=\S+\s*', '', tb_command)
         tb_command += "-work TB_LIB "
+        if 'uvm_pkg.sv' not in tb_command:
+            uvm_pkg_path = self.get_uvm_pkg_path()
+            if uvm_pkg_path:
+                tb_command += "%s " % uvm_pkg_path
         tb_command = self.build_vlogan_tb_flist(tb_command)
         tb_command += "-l %s " % self.cmd_args.vlogan_tb_log_file_path
         print("[INCR] Step 3/3: Compiling TB package...")
