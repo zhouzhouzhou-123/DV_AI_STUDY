@@ -834,11 +834,17 @@ class CSRun:
                 return path
         return ''
 
-    def extract_incdir_from_flist(self, flist_path):
-        """Extract +incdir+ paths from a filelist file"""
+    def extract_incdir_from_flist(self, flist_path, visited=None):
+        """Extract +incdir+ paths from a filelist file, recursively following -f references"""
         incdirs = []
         if not flist_path or not os.path.isfile(flist_path):
             return incdirs
+        if visited is None:
+            visited = set()
+        flist_abs = os.path.abspath(flist_path)
+        if flist_abs in visited:
+            return incdirs
+        visited.add(flist_abs)
         with open(flist_path, 'r') as f:
             for line in f:
                 line = line.strip()
@@ -850,6 +856,14 @@ class CSRun:
                         incdir = os.path.abspath(os.path.join(os.path.dirname(flist_path), incdir))
                     if os.path.isdir(incdir):
                         incdirs.append(incdir)
+                elif line.startswith('-f ') or line.startswith('-F '):
+                    nested_flist = line[3:].strip()
+                    nested_flist = os.path.expandvars(nested_flist)
+                    nested_flist = os.path.expanduser(nested_flist)
+                    if not os.path.isabs(nested_flist):
+                        nested_flist = os.path.abspath(os.path.join(os.path.dirname(flist_path), nested_flist))
+                    if os.path.isfile(nested_flist):
+                        incdirs.extend(self.extract_incdir_from_flist(nested_flist, visited))
         return incdirs
 
     def execute_vlogan_tb_incr_command(self):
