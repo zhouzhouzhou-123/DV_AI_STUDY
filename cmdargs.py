@@ -691,25 +691,25 @@ class CmdArgs:
             PubFunc.exit_err("sim_dir(%s) not exist!\n" % self.sim_dir)
 
         # Determine simulation type prefix
-        sim_type_prefix = "presim"
+        self.sim_type_prefix = "presim"
         if self.is_post or self.is_dc or self.is_pr or self.is_pg:
-            sim_type_prefix = "postsim"
+            self.sim_type_prefix = "postsim"
         elif self.is_pa:
-            sim_type_prefix = "pasim"
+            self.sim_type_prefix = "pasim"
         elif self.is_xa:
-            sim_type_prefix = "xasim"
+            self.sim_type_prefix = "xasim"
 
         # Keep first half as $SIM_DIR/comp_result, add sim_type_prefix as subdirectory
-        self.comp_result_path = "%s/comp_result/%s" % (self.sim_dir, sim_type_prefix)
+        self.comp_result_path = "%s/comp_result/%s" % (self.sim_dir, self.sim_type_prefix)
 
-        self.sim_result_path = "%s/result/%s" % (self.sim_dir, sim_type_prefix)
+        self.sim_result_path = "%s/result/%s" % (self.sim_dir, self.sim_type_prefix)
 
         if "XA_SIM" in self.usr_macros:
-            self.wave_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.xa_log_dirname, sim_type_prefix, self.test_name)
+            self.wave_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.xa_log_dirname, self.sim_type_prefix, self.test_name)
         else:
-            self.wave_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.wave_dirname, sim_type_prefix, self.test_name)
-        self.log_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.log_dirname, sim_type_prefix, self.test_name)
-        self.xa_log_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.xa_log_dirname, sim_type_prefix, self.test_name)
+            self.wave_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.wave_dirname, self.sim_type_prefix, self.test_name)
+        self.log_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.log_dirname, self.sim_type_prefix, self.test_name)
+        self.xa_log_dir_path = "%s/%s/%s/%s" % (self.sim_dir, self.env_cfg.xa_log_dirname, self.sim_type_prefix, self.test_name)
 
         if not os.path.isdir(self.comp_result_path):
             os.makedirs(self.comp_result_path)
@@ -731,7 +731,7 @@ class CmdArgs:
         self.set_test_comp_sim_name()
         self.set_test_dirs()
         if self.is_vmnocomp:
-            self.simv_file_path = "%s/comp_result/simv_%s" % (self.env_cfg.vmcomp_path, self.comp_test_name)
+            self.simv_file_path = "%s/comp_result/%s/simv_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, self.comp_test_name)
         else:
             self.simv_file_path = "%s/simv_%s" % (self.comp_result_path, self.comp_test_name)
 
