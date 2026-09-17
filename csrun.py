@@ -705,7 +705,7 @@ class CSRun:
             f.write("TB_LIB : %s\n" % os.path.abspath(tb_pkg_dir))
             for lib_name in self.env_cfg.vendor_ip_precompiled_libs.keys():
                 lib_path = os.path.join(rtl_pkg_dir, lib_name)
-                f.write("DEFINE %s %s\n" % (lib_name, os.path.abspath(lib_path)))
+                f.write("%s : %s\n" % (lib_name, os.path.abspath(lib_path)))
         os.environ["SYNOPSYS_SIM_SETUP"] = setup_file_path
 
     def check_rtl_modified_incr(self):
