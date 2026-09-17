@@ -1329,8 +1329,8 @@ class CSRun:
     def vmcomp_simv_link_vmcomp_path(self):
 
         brun_run_dir = os.environ.get("BRUN_RUN_DIR")
-        #self.postgroupscript = PostGroupScript(self.cmd_args.brun_group_dir,self.env_cfg.vmcomp_path)
-        self.postgroupscript = PostGroupScript(brun_run_dir,self.env_cfg.vmcomp_path)
+        #self.postgroupscript = PostGroupScript(self.cmd_args.brun_group_dir,self.cmd_args.comp_result_path)
+        self.postgroupscript = PostGroupScript(brun_run_dir,self.cmd_args.comp_result_path)
         self.postgroupscript.run()
     def vm_postrun_dir_vdb_clean(self):
         postrunscript                       = PostRunScript()
@@ -1338,14 +1338,14 @@ class CSRun:
         postrunscript.brun_testname         = os.environ.get("BRUN_TEST_NAME")
         postrunscript.brun_seed             = os.environ.get("BRUN_SV_SEED")
         postrunscript.locallog_keep         = self.cmd_args.locallog_keep
-        postrunscript.vmcomp_path           = self.env_cfg.vmcomp_path
+        postrunscript.vmcomp_path           = self.cmd_args.comp_result_path
         postrunscript.brun_run_dir          = os.environ.get("BRUN_RUN_DIR")
         postrunscript.simv_test_pkg         = self.env_cfg.simv_test_pkg
         postrunscript.run()
 
     def delete_vmcomp_vdb(self):
         postrunscript                       = PostRunScript()
-        postrunscript.vmcomp_path           = self.env_cfg.vmcomp_path
+        postrunscript.vmcomp_path           = self.cmd_args.comp_result_path
         postrunscript.simv_test_pkg         = self.env_cfg.simv_test_pkg
         postrunscript.coverage_data_path    = "%s/coverage/coverage.vdb" % self.env_cfg.work_dir
         postrunscript.all_vdb_clean         = True

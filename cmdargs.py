@@ -676,7 +676,7 @@ class CmdArgs:
     
     def set_test_dirs(self):
         if self.is_regr:
-            self.vmcomp_dir_path = "%s" % (self.env_cfg.vmcomp_path)   
+            self.vmcomp_dir_path = "%s/comp_result/%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix)   
             if self.is_comp:
                 self.sim_dir = self.vmcomp_dir_path
                 #self.coverage_result_path = self.vmcomp_dir_path
