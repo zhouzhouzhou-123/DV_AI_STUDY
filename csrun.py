@@ -275,6 +275,8 @@ class CSRun:
         extra_files = []
         if self.env_cfg.pre_sim_duv_vhdl_flist:
             extra_files.append(self.env_cfg.pre_sim_duv_vhdl_flist)
+        for lib_path in self.env_cfg.vendor_ip_precompiled_libs.values():
+            extra_files.append(lib_path)
         return self.m_lib_signature(flist, extra_files)
 
     def m_tb_signature(self):
@@ -694,6 +696,9 @@ class CSRun:
             f.write("DEFAULT: %s\n" % self.cmd_args.comp_result_path)
             f.write("RTL_LIB : %s\n" % os.path.abspath(rtl_pkg_dir))
             f.write("TB_LIB : %s\n" % os.path.abspath(tb_pkg_dir))
+            for lib_name in self.env_cfg.vendor_ip_precompiled_libs.keys():
+                lib_path = os.path.join(rtl_pkg_dir, lib_name)
+                f.write("DEFINE %s %s\n" % (lib_name, os.path.abspath(lib_path)))
         os.environ["SYNOPSYS_SIM_SETUP"] = setup_file_path
 
     def check_rtl_modified_incr(self):
@@ -757,6 +762,24 @@ class CSRun:
             return False
         return True
 
+    def copy_precompiled_libs(self):
+        if not self.env_cfg.vendor_ip_precompiled_libs:
+            return True
+        rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
+        if not os.path.exists(rtl_pkg_dir):
+            os.makedirs(rtl_pkg_dir)
+        for lib_name, lib_path in self.env_cfg.vendor_ip_precompiled_libs.items():
+            dest_path = os.path.join(rtl_pkg_dir, lib_name)
+            if os.path.exists(lib_path):
+                if os.path.exists(dest_path):
+                    shutil.rmtree(dest_path)
+                shutil.copytree(lib_path, dest_path)
+                print("[INCR] Copied precompiled lib: %s -> %s" % (lib_name, dest_path))
+            else:
+                print("[INCR] Warning: precompiled lib not found: %s" % lib_path)
+                return False
+        return True
+
     def execute_vlogan_tb_incr_command(self):
         tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
         tb_command = self.build_vlogan_head()
@@ -808,6 +831,8 @@ class CSRun:
         if need_full_compile:
             if not self.execute_vhdlan_rtl_incr_command():
                 PubFunc.exit_err("[INCR] VHDL RTL compilation failed, please check errors")
+            if not self.copy_precompiled_libs():
+                PubFunc.exit_err("[INCR] Precompiled libs copy failed, please check errors")
             if not self.execute_vlogan_rtl_incr_command():
                 PubFunc.exit_err("[INCR] Verilog RTL compilation failed, please check errors")
             rtl_compiled = True

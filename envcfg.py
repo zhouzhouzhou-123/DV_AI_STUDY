@@ -72,7 +72,8 @@ class EnvCfg:
         self.xa_bsub_args = ""
         self.post_common_macro = ""
         self.vmnocomp_fsdb_dump_tcl_path = ""
-        self.user_custom_vdb_delete_key_word = "reg_access"        
+        self.user_custom_vdb_delete_key_word = "reg_access"
+        self.vendor_ip_precompiled_libs = {}
         # --- private ---
         self.unfold_flist_path = ""
         self.ori_fpath_list = []
@@ -339,6 +340,12 @@ class EnvCfg:
         if self.env_cfg_dict.__contains__("post_common_macro"):
             if self.env_cfg_dict["post_common_macro"] != None:
                 self.post_common_macro = self.env_cfg_dict["post_common_macro"]
+        if self.env_cfg_dict.__contains__("vendor_ip"):
+            if self.env_cfg_dict["vendor_ip"] != None:
+                vendor_ip = self.env_cfg_dict["vendor_ip"]
+                if 'precompiled_libs' in vendor_ip and vendor_ip['precompiled_libs']:
+                    for lib_name, lib_path in vendor_ip['precompiled_libs'].items():
+                        self.vendor_ip_precompiled_libs[lib_name] = self.get_file_abspath(lib_path)
 
     def parse_duv_cfg(self):
         if os.path.isfile(self.duv_cfg_path):
