@@ -577,9 +577,7 @@ class CSRun:
         vcs_compile_command += "-l %s " % self.cmd_args.elab_log_file_path
         if self.cmd_args.is_incr_run:
             tb_pkg_dir = "%s/tb_pkg" % self.cmd_args.comp_result_path
-            rtl_pkg_dir = "%s/rtl_pkg" % self.cmd_args.comp_result_path
             vcs_compile_command += "-Mdir=%s " % tb_pkg_dir
-            vcs_compile_command += "+libpath+%s " % rtl_pkg_dir
         else:
             vcs_compile_command += "-Mdir=%s " % self.cmd_args.comp_result_path
 
@@ -794,6 +792,8 @@ class CSRun:
         rtl_pkg_exists = os.path.exists(rtl_pkg_dir) and len(os.listdir(rtl_pkg_dir)) > 0
         tb_pkg_exists = os.path.exists(tb_pkg_dir) and len(os.listdir(tb_pkg_dir)) > 0
         need_full_compile = False
+        rtl_compiled = False
+        tb_compiled = False
         if not rtl_pkg_exists or not tb_pkg_exists:
             need_full_compile = True
             print("[INCR] Package not found, doing full compile...")
@@ -805,18 +805,42 @@ class CSRun:
             self.execute_vhdlan_rtl_incr_command()
             if not self.execute_vlogan_rtl_incr_command():
                 PubFunc.exit_err("[INCR] RTL compilation failed, please check errors")
+            rtl_compiled = True
             if not self.execute_vlogan_tb_incr_command():
                 PubFunc.exit_err("[INCR] TB compilation failed, please check errors")
+            tb_compiled = True
         else:
             if tb_changed:
                 if not self.execute_vlogan_tb_incr_command():
                     PubFunc.exit_err("[INCR] TB compilation failed, please check errors")
+                tb_compiled = True
             else:
                 print("[INCR] No files modified, skip vlogan compile")
         self.execute_vcs_compile_command()
         self.check_hw_compile_error_with_cleanup(self.cmd_args.elab_log_file_path, tb_pkg_dir)
-        self.gen_comp_log_file()
+        self.gen_incr_comp_log_file(rtl_compiled, tb_compiled)
         return True
+
+    def gen_incr_comp_log_file(self, rtl_compiled, tb_compiled):
+        log_files = []
+        if rtl_compiled:
+            if os.path.isfile(self.cmd_args.vlogan_rtl_log_file_path):
+                log_files.append(self.cmd_args.vlogan_rtl_log_file_path)
+        if tb_compiled:
+            if os.path.isfile(self.cmd_args.vlogan_tb_log_file_path):
+                log_files.append(self.cmd_args.vlogan_tb_log_file_path)
+        if os.path.isfile(self.cmd_args.elab_log_file_path):
+            log_files.append(self.cmd_args.elab_log_file_path)
+        with open(self.cmd_args.comp_log_file_path, 'w') as out:
+            out.write("=" * 80 + "\n")
+            out.write("  Incremental Compile Log\n")
+            out.write("  RTL compiled: %s | TB compiled: %s\n" % (rtl_compiled, tb_compiled))
+            out.write("=" * 80 + "\n\n")
+            for lf in log_files:
+                out.write("--- %s ---\n" % os.path.basename(lf))
+                with open(lf, 'r') as f:
+                    out.write(f.read())
+                out.write("\n")
 
     def execute_command_on_shell_with_return(self, command):
         command = command.replace('  ', ' ')
