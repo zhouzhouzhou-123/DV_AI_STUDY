@@ -272,7 +272,10 @@ class CSRun:
             flist = self.env_cfg.post_sim_duv_flist
         elif self.cmd_args.is_pa:
             flist = self.env_cfg.pa_sim_duv_flist
-        return self.m_lib_signature(flist, [])
+        extra_files = []
+        if self.env_cfg.pre_sim_duv_vhdl_flist:
+            extra_files.append(self.env_cfg.pre_sim_duv_vhdl_flist)
+        return self.m_lib_signature(flist, extra_files)
 
     def m_tb_signature(self):
         flist = self.env_cfg.tb_flist
@@ -719,7 +722,7 @@ class CSRun:
         rtl_command += "-work RTL_LIB "
         rtl_command = self.build_vlogan_dut_flist(rtl_command)
         rtl_command += "-l %s " % self.cmd_args.vlogan_rtl_log_file_path
-        print("[INCR] Compiling RTL to shared dir: %s" % rtl_pkg_dir)
+        print("[INCR] Step 2/3: Compiling Verilog RTL to shared dir: %s" % rtl_pkg_dir)
         ret = self.execute_command_on_shell_with_return(rtl_command)
         if ret != 0:
             print("[INCR] RTL compilation failed, removing rtl_pkg directory...")
@@ -743,13 +746,14 @@ class CSRun:
         else:
             vhdlan_command = "vhdlan "
         vhdlan_command += "%s " % self.env_cfg.vhdlan_default_comp_args
-        vhdlan_command += "-Mdir=%s " % rtl_pkg_dir
+        vhdlan_command += "-work RTL_LIB "
         vhdlan_command += "-f %s " % self.env_cfg.pre_sim_duv_vhdl_flist
         vhdlan_command += "-l %s " % (self.cmd_args.comp_result_path + "vhdlan_rtl_incr.log")
-        print("[INCR] Compiling VHDL RTL to shared dir: %s" % rtl_pkg_dir)
+        print("[INCR] Step 1/3: Compiling VHDL RTL to shared dir: %s" % rtl_pkg_dir)
         ret = self.execute_command_on_shell_with_return(vhdlan_command)
         if ret != 0:
-            print("[INCR] VHDL RTL compilation failed")
+            print("[INCR] VHDL RTL compilation failed, removing rtl_pkg directory...")
+            shutil.rmtree(rtl_pkg_dir, ignore_errors=True)
             return False
         return True
 
@@ -760,7 +764,7 @@ class CSRun:
         tb_command += "-work TB_LIB "
         tb_command = self.build_vlogan_tb_flist(tb_command)
         tb_command += "-l %s " % self.cmd_args.vlogan_tb_log_file_path
-        print("[INCR] Compiling TB package...")
+        print("[INCR] Step 3/3: Compiling TB package...")
         ret = self.execute_command_on_shell_with_return(tb_command)
         if ret != 0:
             print("[INCR] TB compilation failed, removing tb_pkg directory...")
@@ -802,9 +806,10 @@ class CSRun:
             self.clear_all_tb_packages_incr()
             need_full_compile = True
         if need_full_compile:
-            self.execute_vhdlan_rtl_incr_command()
+            if not self.execute_vhdlan_rtl_incr_command():
+                PubFunc.exit_err("[INCR] VHDL RTL compilation failed, please check errors")
             if not self.execute_vlogan_rtl_incr_command():
-                PubFunc.exit_err("[INCR] RTL compilation failed, please check errors")
+                PubFunc.exit_err("[INCR] Verilog RTL compilation failed, please check errors")
             rtl_compiled = True
             if not self.execute_vlogan_tb_incr_command():
                 PubFunc.exit_err("[INCR] TB compilation failed, please check errors")
@@ -823,7 +828,10 @@ class CSRun:
 
     def gen_incr_comp_log_file(self, rtl_compiled, tb_compiled):
         log_files = []
+        vhdl_log = "%svhdlan_rtl_incr.log" % self.cmd_args.comp_result_path
         if rtl_compiled:
+            if os.path.isfile(vhdl_log):
+                log_files.append(vhdl_log)
             if os.path.isfile(self.cmd_args.vlogan_rtl_log_file_path):
                 log_files.append(self.cmd_args.vlogan_rtl_log_file_path)
         if tb_compiled:
