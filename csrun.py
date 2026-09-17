@@ -744,6 +744,8 @@ class CSRun:
         rtl_command = self.build_vlogan_head()
         rtl_command = rtl_command.replace("${UVM_HOME}/src/uvm_pkg.sv ", "")
         rtl_command = re.sub(r'-Mdir=\S+\s*', '', rtl_command)
+        rtl_command = re.sub(r'-ntb_opts\s+\S+', '', rtl_command)
+        rtl_command += "+define+UVM_NO_RECORDING "
         rtl_command += "-work RTL_LIB "
         rtl_command = self.build_vlogan_dut_flist(rtl_command)
         rtl_command += "-l %s " % self.cmd_args.vlogan_rtl_log_file_path
@@ -818,6 +820,7 @@ class CSRun:
         tb_command = self.build_vlogan_head()
         tb_command = re.sub(r'-Mdir=\S+\s*', '', tb_command)
         tb_command = re.sub(r'-ntb_opts\s+\S+', '', tb_command)
+        tb_command += "+define+UVM_NO_RECORDING "
         tb_command += "-work TB_LIB "
         if 'uvm_pkg.sv' not in tb_command:
             uvm_pkg_path = self.get_uvm_pkg_path()
