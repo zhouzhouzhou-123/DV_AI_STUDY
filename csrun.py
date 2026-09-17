@@ -817,6 +817,7 @@ class CSRun:
         tb_pkg_dir = self.tb_pkg_dir
         tb_command = self.build_vlogan_head()
         tb_command = re.sub(r'-Mdir=\S+\s*', '', tb_command)
+        tb_command = re.sub(r'-ntb_opts\s+\S+', '', tb_command)
         tb_command += "-work TB_LIB "
         if 'uvm_pkg.sv' not in tb_command:
             uvm_pkg_path = self.get_uvm_pkg_path()
