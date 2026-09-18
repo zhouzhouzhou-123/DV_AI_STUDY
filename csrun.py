@@ -781,7 +781,8 @@ class CSRun:
     def execute_vhdlan_rtl_incr_command(self):
         if not self.env_cfg.pre_sim_duv_vhdl_flist:
             return True
-        if not os.path.isfile(self.env_cfg.pre_sim_duv_vhdl_flist):
+        vhdl_flist = self.env_cfg.get_file_abspath(self.env_cfg.pre_sim_duv_vhdl_flist)
+        if not os.path.isfile(vhdl_flist):
             print("[INCR] VHDL filelist not found, skipping VHDL compilation")
             return True
         rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
@@ -792,8 +793,9 @@ class CSRun:
         else:
             vhdlan_command = "vhdlan "
         vhdlan_command += "%s " % self.env_cfg.vhdlan_default_comp_args
+        vhdlan_command += "-Mdir=%s " % rtl_pkg_dir
         vhdlan_command += "-work RTL_LIB "
-        vhdlan_command += "-f %s " % self.env_cfg.pre_sim_duv_vhdl_flist
+        vhdlan_command += "-f %s " % vhdl_flist
         vhdlan_command += "-l %s " % (self.cmd_args.comp_result_path + "vhdlan_rtl_incr.log")
         print("[INCR] Step 1/3: Compiling VHDL RTL to shared dir: %s" % rtl_pkg_dir)
         ret = self.execute_command_on_shell_with_return(vhdlan_command)

@@ -46,6 +46,7 @@ class EnvCfg:
         self.tb_flist = ""
         self.tb_xa_flist = ""
         self.tb_post_flist = ""
+        self.sva_bind_flist = ""
         self.vhdlan_default_comp_args = ""
         self.vlogan_default_comp_args = ""
         self.vlogan_only_pre_comp_args = ""
@@ -209,7 +210,7 @@ class EnvCfg:
                 PubFunc.print_warn("pa_sim_duv_flist(%s) needs provide!" % self.pa_sim_duv_flist)
         if self.env_cfg_dict.__contains__("pre_sim_duv_vhdl_flist"):
             if self.env_cfg_dict["pre_sim_duv_vhdl_flist"] != None:
-                self.pre_sim_duv_vhdl_flist = self.env_cfg_dict["pre_sim_duv_vhdl_flist"]
+                self.pre_sim_duv_vhdl_flist = self.get_file_abspath(self.env_cfg_dict["pre_sim_duv_vhdl_flist"])
                 self.is_mixed = True
             else:
                 PubFunc.print_warn("pre_sim_duv_vhdl_flist(%s) needs provide!" % self.pre_sim_duv_vhdl_flist)
@@ -255,6 +256,9 @@ class EnvCfg:
                 self.tb_post_flist = self.tb_flist
         else:
             self.tb_post_flist = self.tb_flist
+        if self.env_cfg_dict.__contains__("sva_bind_flist"):
+            if self.env_cfg_dict["sva_bind_flist"] != None:
+                self.sva_bind_flist = self.get_file_abspath(self.env_cfg_dict["sva_bind_flist"])
         if self.env_cfg_dict.__contains__("vhdlan_default_comp_args"):
             if self.env_cfg_dict["vhdlan_default_comp_args"] != None:
                 self.vhdlan_default_comp_args = self.env_cfg_dict["vhdlan_default_comp_args"]
