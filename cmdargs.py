@@ -108,6 +108,7 @@ class CmdArgs:
         self.xa_spice_file_path = ""
         self.xa_cfg_file_path = ""
         self.xa_init_file_path = ""
+        self.sim_type_prefix = "presim"
         self.vio_target = "regression/result"
         self.vio_target_path = ""
         self.argv_idx = 1
@@ -694,9 +695,17 @@ class CmdArgs:
                 self.vm_local_log_file_path = "%s/local_log.log" %(self.sim_dir)
                 #self.coverage_result_path = os.environ.get("BRUN_RUN_DIR")
         else:
-            self.sim_dir = os.path.abspath(os.environ.get("SIM_DIR"))
+            sim_dir_env = os.environ.get("SIM_DIR")
+            if sim_dir_env:
+                self.sim_dir = os.path.abspath(sim_dir_env)
+            else:
+                brun_top_dir = os.environ.get("BRUN_TOP_DIR")
+                if brun_top_dir:
+                    self.sim_dir = os.path.dirname(os.path.dirname(brun_top_dir))
+                else:
+                    self.sim_dir = ""
 
-        if not os.path.isdir(self.sim_dir):
+        if not self.sim_dir or not os.path.isdir(self.sim_dir):
             PubFunc.exit_err("sim_dir(%s) not exist!\n" % self.sim_dir)
 
         # Keep first half as $SIM_DIR/comp_result, add sim_type_prefix and test_name as subdirectories
@@ -826,6 +835,8 @@ class CmdArgs:
         elif self.is_vio:
             self.check_set_vio_target_path()
         elif self.is_clean:
+            self.set_test_dirs()
+        elif self.is_vdbmerge or self.is_vmcomplink or self.is_vmsimclean:
             self.set_test_dirs()
 
     def print_help_info(self):
