@@ -1067,6 +1067,9 @@ class CSRun:
             PubFunc.exit_err("VCS Compile Error!\n")
 
     def execute_simulation_command(self):
+        print("********************* TEST Detail ****************************************")
+        print("TEST Detail:m run_xx %s %d define=%s" % (self.cmd_args.test_name, self.cmd_args.rand_seed, "+".join(self.cmd_args.usr_macros) if self.cmd_args.usr_macros else "none"))
+        print("*************************************************************************")
         if self.cmd_args.is_xa:
             vcs_sim_command = "%s " % self.env_cfg.xa_bsub_args
         elif self.cmd_args.is_bsub:
@@ -1482,23 +1485,19 @@ class CSRun:
         self.execute_command_on_shell(ln_coverage_command)
    
     def link_vmcomp_path_coverage_vdb(self):
-        vmcomp_vdb_path = self.env_cfg.vmcomp_path + "/"
-        cur_time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime(time.time()))        
-        vdb_list = os.listdir(vmcomp_vdb_path)
-        for index in vdb_list:
-            match_vmcomp_vdb = re.match(r'\w*.vdb$',index)
-            if match_vmcomp_vdb:
-                vdb_path = os.path.join(vmcomp_vdb_path,index)
-                ln_coverage_vdb_path = "%s/vmnocomp_%s" % (self.env_cfg.cov_result_path,index)        
-                ln_coverage_command = "ln -s %s %s" % (vdb_path, ln_coverage_vdb_path)
-                self.execute_command_on_shell(ln_coverage_command)
+        for root, dirs, files in os.walk(self.env_cfg.vmcomp_path):
+            for d in dirs:
+                if d.endswith(".vdb"):
+                    vdb_path = os.path.join(root, d)
+                    ln_coverage_vdb_path = "%s/vmnocomp_%s" % (self.env_cfg.cov_result_path, d)
+                    if not os.path.exists(ln_coverage_vdb_path):
+                        ln_coverage_command = "ln -s %s %s" % (vdb_path, ln_coverage_vdb_path)
+                        self.execute_command_on_shell(ln_coverage_command)
 
     def vmcomp_simv_link_vmcomp_path(self):
-
         brun_run_dir = os.environ.get("BRUN_RUN_DIR")
-        vmcomp_comp_path = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.cmd_args.sim_type_prefix, self.cmd_args.test_name)
-        #self.postgroupscript = PostGroupScript(self.cmd_args.brun_group_dir,vmcomp_comp_path)
-        self.postgroupscript = PostGroupScript(brun_run_dir,vmcomp_comp_path)
+        vmcomp_path = self.env_cfg.vmcomp_path
+        self.postgroupscript = PostGroupScript(brun_run_dir, vmcomp_path, self.env_cfg.simv_test_pkg)
         self.postgroupscript.run()
     def vm_postrun_dir_vdb_clean(self):
         postrunscript                       = PostRunScript()
@@ -1506,14 +1505,34 @@ class CSRun:
         postrunscript.brun_testname         = os.environ.get("BRUN_TEST_NAME")
         postrunscript.brun_seed             = os.environ.get("BRUN_SV_SEED")
         postrunscript.locallog_keep         = self.cmd_args.locallog_keep
-        postrunscript.vmcomp_path           = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.cmd_args.sim_type_prefix, self.cmd_args.test_name)
+        sim_type_prefix = self.cmd_args.sim_type_prefix if self.cmd_args.sim_type_prefix else "presim"
+        comp_pkg_path = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, sim_type_prefix, self.env_cfg.simv_test_pkg)
+        if os.path.exists(comp_pkg_path):
+            comp_dir_name = "comp_%s" % self.env_cfg.simv_test_pkg
+        else:
+            comp_dir_name = "comp_%s" % postrunscript.brun_testname
+        postrunscript.vmcomp_path           = "%s/comp_result/%s/%s" % (self.env_cfg.vmcomp_path, sim_type_prefix, comp_dir_name)
         postrunscript.brun_run_dir          = os.environ.get("BRUN_RUN_DIR")
         postrunscript.simv_test_pkg         = self.env_cfg.simv_test_pkg
         postrunscript.run()
 
     def delete_vmcomp_vdb(self):
+        brun_testname = os.environ.get("BRUN_TEST_NAME")
+        sim_type_prefix = self.cmd_args.sim_type_prefix if self.cmd_args.sim_type_prefix else "presim"
+        comp_pkg_path = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, sim_type_prefix, self.env_cfg.simv_test_pkg)
+        if brun_testname and os.path.exists(comp_pkg_path):
+            comp_dir_name = "comp_%s" % self.env_cfg.simv_test_pkg
+        elif brun_testname:
+            comp_dir_name = "comp_%s" % brun_testname
+        else:
+            comp_dir_name = ""
+        
+        if comp_dir_name:
+            postrunscript_vmcomp_path = "%s/comp_result/%s/%s" % (self.env_cfg.vmcomp_path, sim_type_prefix, comp_dir_name)
+        else:
+            postrunscript_vmcomp_path = "%s/comp_result/%s" % (self.env_cfg.vmcomp_path, sim_type_prefix)
         postrunscript                       = PostRunScript()
-        postrunscript.vmcomp_path           = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.cmd_args.sim_type_prefix, self.cmd_args.test_name)
+        postrunscript.vmcomp_path           = postrunscript_vmcomp_path
         postrunscript.simv_test_pkg         = self.env_cfg.simv_test_pkg
         postrunscript.coverage_data_path    = "%s/coverage/coverage.vdb" % self.env_cfg.work_dir
         postrunscript.all_vdb_clean         = True
@@ -1603,7 +1622,6 @@ class CSRun:
             self.gen_testpkg_from_testcases()
 
         elif self.cmd_args.is_help:
-            vmcomp_dir_path_t =os.environ.get("VMCOMP_PATH")
             self.cmd_args.print_help_info()
 
         total_elapsed = time.time() - total_start_time

@@ -685,8 +685,14 @@ class CmdArgs:
         elif self.is_xa:
             self.sim_type_prefix = "xasim"
 
+        # Determine comp directory name based on pkg mode
+        if self.is_pkg or self.is_vmcomp:
+            comp_dir_name = self.env_cfg.simv_test_pkg
+        else:
+            comp_dir_name = self.test_name
+
         if self.is_regr:
-            self.vmcomp_dir_path = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, self.test_name)   
+            self.vmcomp_dir_path = "%s/comp_result/%s/comp_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, comp_dir_name)   
             if self.is_comp:
                 self.sim_dir = self.vmcomp_dir_path
                 #self.coverage_result_path = self.vmcomp_dir_path
@@ -700,8 +706,8 @@ class CmdArgs:
         if not os.path.isdir(self.sim_dir):
             PubFunc.exit_err("sim_dir(%s) not exist!\n" % self.sim_dir)
 
-        # Keep first half as $SIM_DIR/comp_result, add sim_type_prefix and test_name as subdirectories
-        self.comp_result_path = "%s/comp_result/%s/comp_%s" % (self.sim_dir, self.sim_type_prefix, self.test_name)
+        # Keep first half as $SIM_DIR/comp_result, add sim_type_prefix and comp_dir_name as subdirectories
+        self.comp_result_path = "%s/comp_result/%s/comp_%s" % (self.sim_dir, self.sim_type_prefix, comp_dir_name)
 
         self.sim_result_path = "%s/result/%s" % (self.sim_dir, self.sim_type_prefix)
 
@@ -732,7 +738,11 @@ class CmdArgs:
         self.set_test_comp_sim_name()
         self.set_test_dirs()
         if self.is_vmnocomp:
-            self.simv_file_path = "%s/comp_result/%s/comp_%s/simv_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, self.test_name, self.comp_test_name)
+            if self.env_cfg.simv_test_pkg in self.comp_test_name:
+                comp_dir_name = "comp_%s" % self.env_cfg.simv_test_pkg
+            else:
+                comp_dir_name = "comp_%s" % self.test_name
+            self.simv_file_path = "%s/comp_result/%s/%s/simv_%s" % (self.env_cfg.vmcomp_path, self.sim_type_prefix, comp_dir_name, self.comp_test_name)
         else:
             self.simv_file_path = "%s/simv_%s" % (self.comp_result_path, self.comp_test_name)
 
