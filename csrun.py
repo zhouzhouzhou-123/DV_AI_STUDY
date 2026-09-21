@@ -385,12 +385,18 @@ class CSRun:
         return vlogan_command
 
     def build_vlogan_tb_flist(self, vlogan_command):
+        vlogan_command += "+define+DUT_ERROR_SCANNER_ON "
+        if self.env_cfg.csa_model_on:
+            vlogan_command += "+define+CSA_MODEL_ON "
         if self.cmd_args.is_xa:
             vlogan_command += " -F %s %s " % (self.env_cfg.tb_xa_flist, self.cmd_args.test_file_path)
         elif (self.cmd_args.is_post or self.cmd_args.is_dc or self.cmd_args.is_pr  or self.cmd_args.is_pg):
             vlogan_command += " -F %s %s " % (self.env_cfg.tb_post_flist, self.cmd_args.test_file_path)
         else:
             vlogan_command += " -F %s %s " % (self.env_cfg.tb_flist, self.cmd_args.test_file_path)
+        if self.env_cfg.csa_model_on:
+            for i in range(1, 11):
+                vlogan_command += " %s/rtl/CSA_MODEL_%d.v " % (self.env_cfg.work_dir, i)
         return vlogan_command
 
     def execute_vlogan_split_command(self):
@@ -532,6 +538,8 @@ class CSRun:
             self.coverage_args += " -cm_dir %s/%s " % (self.cmd_args.sim_dir, self.cmd_args.sim_test_name)
     
     def execute_vcs_compile_command(self):
+        import time
+        start_time = time.time()
         if self.env_cfg.split_lib:
             # elaboration skip : identical libs + identical vcs command and
             # the simv binary still present -> nothing to do
@@ -542,8 +550,10 @@ class CSRun:
                 return True
             self.execute_command_on_shell(self.build_vcs_compile_command())
             self.m_write_elab_signature(elab_sig)
+            self.elab_compile_time = time.time() - start_time
             return True
         self.execute_command_on_shell(self.build_vcs_compile_command())
+        self.elab_compile_time = time.time() - start_time
         return True
 
     def build_vcs_compile_command(self, dry_run=False):
@@ -685,7 +695,8 @@ class CSRun:
     def get_shared_rtl_pkg_dir(self):
         # comp_result_path is $SIM_DIR/comp_result/$sim_type/comp_$test_name
         # shared rtl_pkg should be at $SIM_DIR/comp_result/$sim_type/rtl_pkg_shared
-        return "%s/rtl_pkg_shared" % os.path.dirname(os.path.dirname(self.cmd_args.comp_result_path))
+        # per sim_type (presim/postsim) to avoid conflict
+        return "%s/rtl_pkg_shared" % os.path.dirname(self.cmd_args.comp_result_path)
 
     def lock_rtl_pkg(self, lock_file_path):
         lock_file = open(lock_file_path, 'w')
@@ -742,6 +753,8 @@ class CSRun:
         return True
 
     def execute_vlogan_rtl_incr_command(self):
+        import time
+        start_time = time.time()
         rtl_pkg_dir = self.get_shared_rtl_pkg_dir()
         rtl_command = self.build_vlogan_head()
         rtl_command = rtl_command.replace("${UVM_HOME}/src/uvm_pkg.sv ", "")
@@ -776,9 +789,14 @@ class CSRun:
         
         rtl_sig = self.m_rtl_signature()
         self.m_write_lib_signature(rtl_pkg_dir, rtl_sig)
+        elapsed = time.time() - start_time
+        print("[INCR] RTL compilation completed in %.2f seconds" % elapsed)
+        self.rtl_compile_time = elapsed
         return True
 
     def execute_vhdlan_rtl_incr_command(self):
+        import time
+        start_time = time.time()
         if not self.env_cfg.pre_sim_duv_vhdl_flist:
             return True
         vhdl_flist = self.env_cfg.get_file_abspath(self.env_cfg.pre_sim_duv_vhdl_flist)
@@ -803,6 +821,9 @@ class CSRun:
             print("[INCR] VHDL RTL compilation failed, removing rtl_pkg_shared directory...")
             shutil.rmtree(rtl_pkg_dir, ignore_errors=True)
             return False
+        elapsed = time.time() - start_time
+        print("[INCR] VHDL compilation completed in %.2f seconds" % elapsed)
+        self.vhdl_compile_time = elapsed
         return True
 
     def copy_precompiled_libs(self):
@@ -868,7 +889,37 @@ class CSRun:
                         incdirs.extend(self.extract_incdir_from_flist(nested_flist, visited))
         return incdirs
 
+    def extract_defines_from_flist(self, flist_path, visited=None):
+        defines = []
+        if not flist_path:
+            return defines
+        flist_path = os.path.expandvars(flist_path)
+        if not os.path.isfile(flist_path):
+            return defines
+        if visited is None:
+            visited = set()
+        flist_abs = os.path.abspath(flist_path)
+        if flist_abs in visited:
+            return defines
+        visited.add(flist_abs)
+        with open(flist_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('+define+'):
+                    defines.append(line)
+                elif line.startswith('-f ') or line.startswith('-F '):
+                    nested_flist = line[3:].strip()
+                    nested_flist = os.path.expandvars(nested_flist)
+                    nested_flist = os.path.expanduser(nested_flist)
+                    if not os.path.isabs(nested_flist):
+                        nested_flist = os.path.abspath(os.path.join(os.path.dirname(flist_path), nested_flist))
+                    if os.path.isfile(nested_flist):
+                        defines.extend(self.extract_defines_from_flist(nested_flist, visited))
+        return defines
+
     def execute_vlogan_tb_incr_command(self):
+        import time
+        start_time = time.time()
         tb_pkg_dir = self.tb_pkg_dir
         tb_command = self.build_vlogan_head()
         tb_command = re.sub(r'-Mdir=\S+\s*', '', tb_command)
@@ -889,6 +940,9 @@ class CSRun:
         rtl_incdirs = self.extract_incdir_from_flist(rtl_flist)
         for incdir in rtl_incdirs:
             tb_command += "+incdir+%s " % incdir
+        rtl_defines = self.extract_defines_from_flist(rtl_flist)
+        for define in rtl_defines:
+            tb_command += "%s " % define
         tb_command = self.build_vlogan_tb_flist(tb_command)
         tb_command += "-l %s " % self.cmd_args.vlogan_tb_log_file_path
         print("[INCR] Step 3/3: Compiling TB package...")
@@ -899,6 +953,9 @@ class CSRun:
             return False
         tb_sig = self.m_tb_signature()
         self.m_write_lib_signature(tb_pkg_dir, tb_sig)
+        elapsed = time.time() - start_time
+        print("[INCR] TB compilation completed in %.2f seconds" % elapsed)
+        self.tb_compile_time = elapsed
         return True
 
     def clear_all_tb_packages_incr(self):
@@ -1025,6 +1082,11 @@ class CSRun:
         vcs_sim_command += "%s " % self.cmd_args.add_usr_plusargs
 
         vcs_sim_command += "-l %s " % self.cmd_args.sim_log_file_path
+
+        vcs_sim_command += "+plusargs_save +SIM_LOG_FILE=%s " % self.cmd_args.sim_log_file_path
+
+        if self.env_cfg.timing_violation_limit > 0:
+            vcs_sim_command += "+plusargs_save +TIMING_VIOLATION_LIMIT=%d " % self.env_cfg.timing_violation_limit
 
 
         if self.cmd_args.is_cov:
@@ -1479,6 +1541,13 @@ class CSRun:
         self.execute_command_on_shell('rm -rf *.fsdb *.log *.html *.report *.txt core.* eSWdebugLog vmgr_db vhdl* *.rpt *info hwswDebugLog *.h *.svh')
 
     def do_cmd(self):
+        import time
+        total_start_time = time.time()
+        self.vhdl_compile_time = 0
+        self.rtl_compile_time = 0
+        self.tb_compile_time = 0
+        self.elab_compile_time = 0
+        self.simulation_time = 0
         if self.cmd_args.is_run:
             #print(self.env_cfg)
             #print(self.cmd_args)
@@ -1536,6 +1605,23 @@ class CSRun:
         elif self.cmd_args.is_help:
             vmcomp_dir_path_t =os.environ.get("VMCOMP_PATH")
             self.cmd_args.print_help_info()
+
+        total_elapsed = time.time() - total_start_time
+        print("\n" + "="*60)
+        print("Time Summary:")
+        print("="*60)
+        if self.vhdl_compile_time > 0:
+            print("  VHDL Compile : %.2f seconds" % self.vhdl_compile_time)
+        if self.rtl_compile_time > 0:
+            print("  RTL Compile  : %.2f seconds" % self.rtl_compile_time)
+        if self.tb_compile_time > 0:
+            print("  TB Compile   : %.2f seconds" % self.tb_compile_time)
+        if self.elab_compile_time > 0:
+            print("  Elaboration  : %.2f seconds" % self.elab_compile_time)
+        if self.simulation_time > 0:
+            print("  Simulation   : %.2f seconds" % self.simulation_time)
+        print("  Total Time   : %.2f seconds" % total_elapsed)
+        print("="*60)
 
 if __name__ == '__main__':
     cs_run = CSRun()

@@ -67,7 +67,8 @@ class EnvCfg:
         # single-library flow); enable in envcfg.yml with  split_lib: True
         self.split_lib = False
         self.vericom_use_wave_do = False
-        self.bsub_default_args= "bsub -Ip"
+        #self.bsub_default_args= "bsub -Ip"
+        self.bsub_default_args= ""
         self.pre_script_path = ""
         self.post_script_path = ""
         self.xa_bsub_args = ""
@@ -75,6 +76,7 @@ class EnvCfg:
         self.vmnocomp_fsdb_dump_tcl_path = ""
         self.user_custom_vdb_delete_key_word = "reg_access"
         self.vendor_ip_precompiled_libs = {}
+        self.vendor_ip_vhdl_libs = {}
         # --- private ---
         self.unfold_flist_path = ""
         self.ori_fpath_list = []
@@ -350,6 +352,21 @@ class EnvCfg:
                 if 'precompiled_libs' in vendor_ip and vendor_ip['precompiled_libs']:
                     for lib_name, lib_path in vendor_ip['precompiled_libs'].items():
                         self.vendor_ip_precompiled_libs[lib_name] = self.get_file_abspath(lib_path)
+                if 'vhdl_libs' in vendor_ip and vendor_ip['vhdl_libs']:
+                    for lib_name, path_prefix in vendor_ip['vhdl_libs'].items():
+                        self.vendor_ip_vhdl_libs[lib_name] = os.path.expandvars(path_prefix)
+        self.dut_error_scanner_on = False
+        if self.env_cfg_dict.__contains__("dut_error_scanner_on"):
+            if self.env_cfg_dict["dut_error_scanner_on"] != None:
+                self.dut_error_scanner_on = self.env_cfg_dict["dut_error_scanner_on"]
+        self.csa_model_on = False
+        if self.env_cfg_dict.__contains__("csa_model_on"):
+            if self.env_cfg_dict["csa_model_on"] != None:
+                self.csa_model_on = self.env_cfg_dict["csa_model_on"]
+        self.timing_violation_limit = 0
+        if self.env_cfg_dict.__contains__("timing_violation_limit"):
+            if self.env_cfg_dict["timing_violation_limit"] != None:
+                self.timing_violation_limit = int(self.env_cfg_dict["timing_violation_limit"])
 
     def parse_duv_cfg(self):
         if os.path.isfile(self.duv_cfg_path):
