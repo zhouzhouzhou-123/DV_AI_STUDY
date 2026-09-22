@@ -1127,7 +1127,7 @@ class CSRun:
                 vcs_sim_command += " -ucli -i %s " % self.env_cfg.vmnocomp_fsdb_dump_tcl_path
 
         self.execute_command_on_shell(vcs_sim_command)
-        self.execute_command_on_shell('rm -rf csrc simv* ucli.key vc_hdrs.h novas_dump.log')
+        self.execute_command_on_shell('rm -rf csrc simv* ucli.key vc_hdrs.h novas_dump.log 64 AN.DB work.lib++ *.dep *.o')
         if not self.cmd_args.is_regr :
             self.log_scanner_error()
 
