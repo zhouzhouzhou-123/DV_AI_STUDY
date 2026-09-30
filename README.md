@@ -133,6 +133,25 @@ PKG 模式使用 `simv_test_pkg`（在 `envcfg.yml` 中声明，默认 `test_pkg
 | `m init_all` | 初始化所有工具（docmake + duvcfg + exti） |
 | `m init_duvcfg` | 初始化 DUT 配置 |
 | `m init_genexti` | 生成 EXTI 用例 |
+| `m timedelay VALUE` | 时间控制（等待到指定时间或延迟指定时长） |
+
+### 时间控制命令
+
+`m timedelay` 支持两种模式：
+
+**模式 1：等待到指定时间**
+```bash
+m timedelay "2026-09-30 14:18"
+m timedelay "2026-10-01 08:00"
+```
+
+**模式 2：延迟指定时长**
+```bash
+m timedelay 5s      # 延迟 5 秒
+m timedelay 3min    # 延迟 3 分钟
+m timedelay 2h      # 延迟 2 小时
+m timedelay 1d      # 延迟 1 天
+```
 
 ## 参数说明
 
