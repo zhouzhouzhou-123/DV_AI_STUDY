@@ -64,8 +64,6 @@ class CmdArgs:
         self.is_genexti = False
         self.is_vhdl_comp = False
         self.is_vmnocomp_fsdb_dump = True 
-        self.is_timedelay = False
-        self.timedelay_value = ""
         self.corner = ""
         self.test_name = ""
         self.str_plusargs = ""
@@ -214,7 +212,6 @@ class CmdArgs:
         match_vmsimclean= re.match(r'^[-]*vmsimclean(_)*', cur_argv)
         match_vdbmerge  = re.match(r'^[-]*vdbmerge(_)*', cur_argv)
         match_vsif  = re.match(r'^[-]*vsif*$', cur_argv)
-        match_timedelay = re.match(r'^[-]*timedelay$', cur_argv)
 
         # --- parse argv1 ---
         if match_help:
@@ -268,9 +265,6 @@ class CmdArgs:
             self.is_init = True
         elif match_vsif:
             self.is_vsif = True
-        elif match_timedelay:
-            self.is_timedelay = True
-            self.need_argv[self.argv_idx] = True
         else:
             PubFunc.print_err("not support 1st argv(%s)" % cur_argv)
             return False
@@ -472,13 +466,6 @@ class CmdArgs:
             self.need_argv[self.argv_idx] = True #mod by wangwei
         elif self.is_vio:
             self.vio_target = cur_argv
-        elif self.is_timedelay:
-            self.timedelay_value = cur_argv
-            if len(self.argv) > self.argv_idx:
-                next_argv = self.argv[self.argv_idx]
-                if re.match(r'^\d{2}:\d{2}(:\d{2})?$', next_argv):
-                    self.timedelay_value += " " + next_argv
-                    self.argv_idx += 1
 
         return True
 

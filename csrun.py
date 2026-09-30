@@ -1068,7 +1068,7 @@ class CSRun:
 
     def execute_simulation_command(self):
         print("********************* TEST Detail ****************************************")
-        print("TEST Detail:m run_xx %s %d define=%s plusargs=%s" % (self.cmd_args.test_name, self.cmd_args.rand_seed, "+".join(self.cmd_args.usr_macros) if self.cmd_args.usr_macros else "none", "+".join(self.cmd_args.add_usr_plusargs) if self.cmd_args.add_usr_plusargs else "none"))
+        print("TEST Detail:m run_xx %s %d define=%s" % (self.cmd_args.test_name, self.cmd_args.rand_seed, "+".join(self.cmd_args.usr_macros) if self.cmd_args.usr_macros else "none"))
         print("*************************************************************************")
         if self.cmd_args.is_xa:
             vcs_sim_command = "%s " % self.env_cfg.xa_bsub_args
@@ -1127,7 +1127,7 @@ class CSRun:
                 vcs_sim_command += " -ucli -i %s " % self.env_cfg.vmnocomp_fsdb_dump_tcl_path
 
         self.execute_command_on_shell(vcs_sim_command)
-        self.execute_command_on_shell('rm -rf csrc simv* ucli.key vc_hdrs.h novas_dump.log 64 *.DB *.sdb work.lib++ *.dep *.o')
+        self.execute_command_on_shell('rm -rf csrc simv* ucli.key vc_hdrs.h novas_dump.log 64 AN.DB work.lib++ *.dep *.o')
         if not self.cmd_args.is_regr :
             self.log_scanner_error()
 
@@ -1552,68 +1552,6 @@ class CSRun:
         testcases_dir    = self.env_cfg.testcases_dir_path
         gen_file_from_testcases.do_template_render(render_file_path,output_file_path,testcases_dir)
 
-    def execute_timedelay(self):
-        import time as time_module
-        from datetime import datetime, timedelta
-        
-        delay_value = self.cmd_args.timedelay_value
-        
-        if not delay_value:
-            PubFunc.exit_err("timedelay requires a value (e.g., '2026-09-30 14:18' or '2h' or '30s')\n")
-        
-        delay_value = delay_value.strip()
-        
-        duration_match = re.match(r'^(\d+)(s|min|m|h|d)$', delay_value)
-        
-        if duration_match:
-            num = int(duration_match.group(1))
-            unit = duration_match.group(2)
-            
-            if unit == 's':
-                delay_seconds = num
-            elif unit == 'min':
-                delay_seconds = num * 60
-            elif unit == 'm':
-                delay_seconds = num * 60
-            elif unit == 'h':
-                delay_seconds = num * 3600
-            elif unit == 'd':
-                delay_seconds = num * 86400
-            else:
-                delay_seconds = num
-            
-            target_time = datetime.now() + timedelta(seconds=delay_seconds)
-            print("[TimeControl] Delaying for: %s" % delay_value)
-        else:
-            try:
-                try:
-                    target_time = datetime.strptime(delay_value, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    target_time = datetime.strptime(delay_value, "%Y-%m-%d %H:%M")
-            except ValueError:
-                PubFunc.exit_err("Invalid timedelay format: %s\nExpected: 'YYYY-MM-DD HH:MM' or 'Ns/Nmin/Nh/Nd'\n" % delay_value)
-            
-            print("[TimeControl] Waiting until: %s" % target_time.strftime('%Y-%m-%d %H:%M:%S'))
-        
-        while True:
-            current_time = datetime.now()
-            
-            if current_time >= target_time:
-                print("[TimeControl] Time reached: %s" % current_time.strftime('%Y-%m-%d %H:%M:%S'))
-                break
-            
-            time_left = (target_time - current_time).total_seconds()
-            hours = int(time_left // 3600)
-            minutes = int((time_left % 3600) // 60)
-            seconds = int(time_left % 60)
-            
-            print("[TimeControl] Remaining: %dh %dm %ds" % (hours, minutes, seconds))
-            
-            sleep_time = min(60, time_left)
-            time_module.sleep(sleep_time)
-        
-        print("[TimeControl] Done")
-
     def delete_regr_comp_result(self):
         if not self.cmd_args.is_pkg:
             self.execute_command_on_shell('rm -rf %s ' % (self.cmd_args.comp_result_path))
@@ -1633,20 +1571,19 @@ class CSRun:
             #print(self.env_cfg)
             #print(self.cmd_args)
             self.execute_c_compile_command()
-            if not (self.cmd_args.is_nocomp or self.cmd_args.is_vmnocomp):
-                if self.cmd_args.is_incr_run:
-                    # Incremental compile flow
-                    self.execute_incremental_compile_command()
-                elif self.cmd_args.is_comp_rtl:
-                    # split-library flow : only the shared RTL library
-                    self.execute_compile_rtl_command()
-                    return True
-                elif self.cmd_args.is_comp_tb:
-                    # split-library flow : only TB library + testcase
-                    self.execute_compile_tb_command()
-                    return True
-                else:
-                    self.execute_compile_command()
+            if self.cmd_args.is_incr_run:
+                # Incremental compile flow
+                self.execute_incremental_compile_command()
+            elif self.cmd_args.is_comp_rtl:
+                # split-library flow : only the shared RTL library
+                self.execute_compile_rtl_command()
+                return True
+            elif self.cmd_args.is_comp_tb:
+                # split-library flow : only TB library + testcase
+                self.execute_compile_tb_command()
+                return True
+            elif not (self.cmd_args.is_nocomp or self.cmd_args.is_vmnocomp):
+                self.execute_compile_command()
             if self.cmd_args.is_comp or self.cmd_args.is_vmcomp:
                 return True
             self.execute_simulation_command()
@@ -1683,8 +1620,6 @@ class CSRun:
         elif self.cmd_args.is_vsif:
             self.gen_vsif_from_testcases()
             self.gen_testpkg_from_testcases()
-        elif self.cmd_args.is_timedelay:
-            self.execute_timedelay()
 
         elif self.cmd_args.is_help:
             self.cmd_args.print_help_info()
