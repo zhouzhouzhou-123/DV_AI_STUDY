@@ -13,7 +13,16 @@ import subprocess
 import hashlib
 import json
 import fcntl
+import logging
+from typing import Optional, List, Dict, Tuple
 
+# Setup logging
+logging.basicConfig(
+level=logging.INFO,
+format="%(asctime)s - %(levelname)s - %(message)s",
+datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger("m_script")
 cur_scr_dir = os.path.dirname(os.path.abspath(__file__))
 pubfunc_dir = os.path.abspath(cur_scr_dir + "/../../pubfunc")
 postgroup_dir = os.path.abspath(cur_scr_dir + "/../../vm_regr_script")
@@ -28,6 +37,80 @@ from postgroupscript import PostGroupScript
 from vm_regr_clean_by_postrun import PostRunScript
 from log_scanner import LogScanner
 
+
+class PerformanceMonitor:
+    """Monitor and report performance metrics for each stage."""
+
+    def __init__(self):
+        self.start_time: float = 0.0
+        self.stage_times: Dict[str, float] = {}
+        self._stage_start: float = 0.0
+        self._current_stage: Optional[str] = None
+
+    def start(self) -> None:
+        self.start_time = time.time()
+
+    def start_stage(self, stage_name: str) -> None:
+        self._current_stage = stage_name
+        self._stage_start = time.time()
+
+    def end_stage(self, stage_name: Optional[str] = None) -> float:
+        stage = stage_name or self._current_stage
+        if not stage:
+            return 0.0
+        elapsed = time.time() - self._stage_start
+        self.stage_times[stage] = elapsed
+        self._current_stage = None
+        return elapsed
+
+    def get_total_time(self) -> float:
+        return time.time() - self.start_time
+
+    def report(self) -> None:
+        total = self.get_total_time()
+        stage_names = {
+            'vhdl_compile': 'VHDL Compile',
+            'rtl_compile': 'RTL Compile ',
+            'tb_compile': 'TB Compile  ',
+            'elaboration': 'Elaboration ',
+            'simulation': 'Simulation  ',
+        }
+        print("\n" + "=" * 60)
+        print("Time Summary:")
+        print("=" * 60)
+        for stage, elapsed in self.stage_times.items():
+            if elapsed > 0:
+                display = stage_names.get(stage, stage.ljust(13))
+                print(f"  {display}: {elapsed:.2f} seconds")
+        print(f"  Total Time   : {total:.2f} seconds")
+        print("=" * 60)
+
+
+class ConfigValidator:
+    """Validate configuration before execution."""
+
+    @staticmethod
+    def validate_env(env_cfg) -> List[str]:
+        errors = []
+        if not env_cfg.work_dir or not os.path.exists(env_cfg.work_dir):
+            errors.append(f"WORK_DIR not found or invalid: {env_cfg.work_dir}")
+        return errors
+
+    @staticmethod
+    def validate_args(cmd_args) -> List[str]:
+        errors = []
+        if cmd_args.is_run and not cmd_args.test_name:
+            errors.append("Test name is required for run command")
+        return errors
+
+    @staticmethod
+    def validate_file(file_path: str, description: str = "File") -> bool:
+        if not os.path.exists(file_path):
+            logger.error(f"{description} not found: {file_path}")
+            return False
+        return True
+
+
 class CSRun:
     def __init__(self):
         self.env_cfg = EnvCfg()
@@ -37,6 +120,8 @@ class CSRun:
         # testcase run-time config info
         self.violation_report_file_name = 'vio.rpt'
         self.violation_report_file_handler = ''
+        self.perf_monitor = PerformanceMonitor()
+        self.perf_monitor.start()
 
     def parse_cmdargs(self, argv):
         self.cmd_args = CmdArgs(sys.argv, self.env_cfg)
@@ -45,11 +130,18 @@ class CSRun:
         self.cmd_args.post_process()
         #print(self.cmd_args)
 
-    def execute_command_on_shell(self, command_to_be_executed):
+    def execute_command_on_shell(self, command_to_be_executed: str) -> int:
+        """Execute command on shell with error handling and logging."""
         command_to_be_executed = command_to_be_executed.replace('  ', ' ')
-        print("execute command :")
-        print(command_to_be_executed)
-        os.system(command_to_be_executed)
+        logger.info(f"Executing: {command_to_be_executed}")
+        try:
+            return_code = os.system(command_to_be_executed)
+            if return_code != 0:
+                logger.warning(f"Command exited with code {return_code}")
+            return return_code
+        except Exception as e:
+            logger.error(f"Command execution failed: {e}")
+            return -1
 
     def analysis_coverage(self):
         coverage_database_path = "%s/coverage/coverage.vdb" % self.env_cfg.work_dir
@@ -92,19 +184,23 @@ class CSRun:
         merged_vdb = self.merge_vdb_remerge()
         self.open_coverage_data_by_verdi(merged_vdb)
 
-    def check_sw_compile_error(self, log_file_path):
-        log_file = open(log_file_path, "r")
-        log_line = log_file.readline()
-        while log_line:
-            log_line = log_line.strip()
-            searchError = re.search(r'error:', log_line)
-            if searchError:
-                self.gen_comp_log_file()
-                print("********************* Log Files ****************************************")
-                print("c_comp_log : %s" % log_file_path)
-                print("************************************************************************")
-                PubFunc.exit_err("C Compile Error!\n")
-            log_line = log_file.readline()
+    def check_sw_compile_error(self, log_file_path: str) -> None:
+        """Check for software compilation errors with proper file handling."""
+        try:
+            with open(log_file_path, "r") as log_file:
+                for line in log_file:
+                    log_line = line.strip()
+                    searchError = re.search(r'error:', log_line)
+                    if searchError:
+                        self.gen_comp_log_file()
+                        print("********************* Log Files ****************************************")
+                        print("c_comp_log : %s" % log_file_path)
+                        print("************************************************************************")
+                        PubFunc.exit_err("C Compile Error!\n")
+        except FileNotFoundError:
+            logger.error(f"Log file not found: {log_file_path}")
+        except PermissionError:
+            logger.error(f"Permission denied reading: {log_file_path}")
 
     def execute_c_compile_command(self):
         if len(self.cmd_args.test_c_files_path) == 0:
@@ -1066,74 +1162,103 @@ class CSRun:
             print("************************************************************************")
             PubFunc.exit_err("VCS Compile Error!\n")
 
-    def execute_simulation_command(self):
-        print("********************* TEST Detail ****************************************")
-        print("TEST Detail:m run_xx %s %d define=%s" % (self.cmd_args.test_name, self.cmd_args.rand_seed, "+".join(self.cmd_args.usr_macros) if self.cmd_args.usr_macros else "none"))
-        print("*************************************************************************")
-        if self.cmd_args.is_xa:
-            vcs_sim_command = "%s " % self.env_cfg.xa_bsub_args
-        elif self.cmd_args.is_bsub:
-            vcs_sim_command = "%s " % self.env_cfg.bsub_default_args
-        else:
-            vcs_sim_command = ""
+    def execute_simulation_command(self) -> None:
+        """Execute VCS simulation command with performance tracking."""
+        self.perf_monitor.start_stage('simulation')
+        self._print_test_detail()
 
-        vcs_sim_command += "%s " % self.cmd_args.simv_file_path
-        vcs_sim_command += "%s " % self.env_cfg.vcs_default_sim_args
-        vcs_sim_command += "+ntb_random_seed=%d " % self.cmd_args.rand_seed
-        vcs_sim_command += "+UVM_TESTNAME=%s " % self.cmd_args.test_name
-        #add plusargs 
-        vcs_sim_command += "%s " % self.cmd_args.add_usr_plusargs
-
-        vcs_sim_command += "-l %s " % self.cmd_args.sim_log_file_path
-
-        vcs_sim_command += "+plusargs_save +SIM_LOG_FILE=%s " % self.cmd_args.sim_log_file_path
-
-        if self.env_cfg.timing_violation_limit > 0:
-            vcs_sim_command += "+plusargs_save +TIMING_VIOLATION_LIMIT=%d " % self.env_cfg.timing_violation_limit
-
-
-        if self.cmd_args.is_cov:
-            self.coverage_args = ""
-            self.coverage_args += " %s " % self.env_cfg.cov_default_args
-            vcs_sim_command += "%s " % self.coverage_args
-            vcs_sim_command += "-cm_name %s.vdb " % self.cmd_args.sim_test_name
-            #coverage_name = self.cmd_args.sim_test_name
-            #vcs_sim_command += " -cm line+cond+fsm+tgl+branch+assert "
-            #vcs_sim_command += " -cm_dir " + os.path.join(self.cmd_args.coverage_result_path, coverage_name) + " "
-            #vcs_sim_command += " -cm_name " + coverage_name + " "
-
-        if self.cmd_args.is_xprop:
-            vcs_sim_command += "-xprop=%s/cfg/xprop.cfg " % self.env_cfg.work_dir
-
-        if len(self.cmd_args.test_c_files_path) > 0:
-            vcs_sim_command += "+HEXFILE_PROC0=%s.hex " % self.cmd_args.test_name
-
-        if "VCD_DUMP_ON" in self.cmd_args.usr_macros:
-            vcs_sim_command += "+plusargs_save +vcd_file=%s " % self.cmd_args.sim_wave_file_path
-        else:
-            vcs_sim_command += "+plusargs_save +fsdb_file=%s " % self.cmd_args.sim_wave_file_path
-        if not ("FSDB_DUMP_OFF" in self.cmd_args.usr_macros):
-            if(self.env_cfg.vericom_use_wave_do):
-                vcs_sim_command += " -ucli -i %s/scripts/wave.do " % self.env_cfg.work_dir
-        vcs_sim_command += "%s " % self.cmd_args.define_usr_macros
-
-        #vcs_sim_command += "+LOG_PATH=%s " % self.cmd_args.sim_log_file_path
-
-        if self.cmd_args.is_pa:
-            #vcs_sim_command += "%s " % self.env_cfg.vcs_pa_comp_args                        
-            vcs_sim_command += "-power %s " % self.env_cfg.upf_cfg_path
-        if self.cmd_args.is_vmnocomp:
-            if self.cmd_args.is_vmnocomp_fsdb_dump:
-                vcs_sim_command += " -ucli -i %s " % self.env_cfg.vmnocomp_fsdb_dump_tcl_path
+        vcs_sim_command = self._build_sim_command_base()
+        vcs_sim_command = self._add_sim_coverage_args(vcs_sim_command)
+        vcs_sim_command = self._add_sim_xprop_args(vcs_sim_command)
+        vcs_sim_command = self._add_sim_wave_args(vcs_sim_command)
+        vcs_sim_command = self._add_sim_misc_args(vcs_sim_command)
 
         self.execute_command_on_shell(vcs_sim_command)
-        self.execute_command_on_shell('rm -rf csrc simv* ucli.key vc_hdrs.h novas_dump.log 64 AN.DB work.lib++ *.dep *.o')
-        if not self.cmd_args.is_regr :
+        self._cleanup_sim_temp_files()
+
+        if not self.cmd_args.is_regr:
             self.log_scanner_error()
 
+        self._print_sim_log_files()
+        self.perf_monitor.end_stage('simulation')
+
+    def _print_test_detail(self) -> None:
+        """Print test detail information."""
+        print("********************* TEST Detail ****************************************")
+        macros_str = "+".join(self.cmd_args.usr_macros) if self.cmd_args.usr_macros else "none"
+        print("TEST Detail:m run_xx %s %d define=%s" % (
+            self.cmd_args.test_name, self.cmd_args.rand_seed, macros_str))
+        print("*************************************************************************")
+
+    def _build_sim_command_base(self) -> str:
+        """Build the base simulation command."""
+        if self.cmd_args.is_xa:
+            cmd = "%s " % self.env_cfg.xa_bsub_args
+        elif self.cmd_args.is_bsub:
+            cmd = "%s " % self.env_cfg.bsub_default_args
+        else:
+            cmd = ""
+
+        cmd += "%s " % self.cmd_args.simv_file_path
+        cmd += "%s " % self.env_cfg.vcs_default_sim_args
+        cmd += "+ntb_random_seed=%d " % self.cmd_args.rand_seed
+        cmd += "+UVM_TESTNAME=%s " % self.cmd_args.test_name
+        cmd += "%s " % self.cmd_args.add_usr_plusargs
+        cmd += "-l %s " % self.cmd_args.sim_log_file_path
+        cmd += "+plusargs_save +SIM_LOG_FILE=%s " % self.cmd_args.sim_log_file_path
+
+        if self.env_cfg.timing_violation_limit > 0:
+            cmd += "+plusargs_save +TIMING_VIOLATION_LIMIT=%d " % self.env_cfg.timing_violation_limit
+
+        return cmd
+
+    def _add_sim_coverage_args(self, cmd: str) -> str:
+        """Add coverage arguments to simulation command."""
+        if self.cmd_args.is_cov:
+            self.coverage_args = " %s " % self.env_cfg.cov_default_args
+            cmd += "%s " % self.coverage_args
+            cmd += "-cm_name %s.vdb " % self.cmd_args.sim_test_name
+        return cmd
+
+    def _add_sim_xprop_args(self, cmd: str) -> str:
+        """Add xprop arguments to simulation command."""
+        if self.cmd_args.is_xprop:
+            cmd += "-xprop=%s/cfg/xprop.cfg " % self.env_cfg.work_dir
+        if len(self.cmd_args.test_c_files_path) > 0:
+            cmd += "+HEXFILE_PROC0=%s.hex " % self.cmd_args.test_name
+        return cmd
+
+    def _add_sim_wave_args(self, cmd: str) -> str:
+        """Add waveform dump arguments to simulation command."""
+        if "VCD_DUMP_ON" in self.cmd_args.usr_macros:
+            cmd += "+plusargs_save +vcd_file=%s " % self.cmd_args.sim_wave_file_path
+        else:
+            cmd += "+plusargs_save +fsdb_file=%s " % self.cmd_args.sim_wave_file_path
+        if not ("FSDB_DUMP_OFF" in self.cmd_args.usr_macros):
+            if self.env_cfg.vericom_use_wave_do:
+                cmd += " -ucli -i %s/scripts/wave.do " % self.env_cfg.work_dir
+        cmd += "%s " % self.cmd_args.define_usr_macros
+        return cmd
+
+    def _add_sim_misc_args(self, cmd: str) -> str:
+        """Add miscellaneous arguments to simulation command."""
+        if self.cmd_args.is_pa:
+            cmd += "-power %s " % self.env_cfg.upf_cfg_path
+        if self.cmd_args.is_vmnocomp:
+            if self.cmd_args.is_vmnocomp_fsdb_dump:
+                cmd += " -ucli -i %s " % self.env_cfg.vmnocomp_fsdb_dump_tcl_path
+        return cmd
+
+    def _cleanup_sim_temp_files(self) -> None:
+        """Cleanup temporary simulation files."""
+        self.execute_command_on_shell(
+            'rm -rf csrc simv* ucli.key vc_hdrs.h novas_dump.log 64 AN.DB work.lib++ *.dep *.o')
+
+    def _print_sim_log_files(self) -> None:
+        """Print simulation log file paths."""
         print("********************* Log Files ****************************************")
         print("comp_log : %s" % self.cmd_args.comp_log_file_path)
-        print("error_det_log  : %s" % self.cmd_args.sim_error_log_file_path)        
+        print("error_det_log  : %s" % self.cmd_args.sim_error_log_file_path)
         print("sim_log  : %s" % self.cmd_args.sim_log_file_path)
         print("************************************************************************")
 
@@ -1559,89 +1684,99 @@ class CSRun:
         self.execute_command_on_shell('rm -rf csrc ucli.key verdiLog 64 AN.DB work.lib++ vc_hdrs.h map.rpt cm.log xa_log result')
         self.execute_command_on_shell('rm -rf *.fsdb *.log *.html *.report *.txt core.* eSWdebugLog vmgr_db vhdl* *.rpt *info hwswDebugLog *.h *.svh')
 
-    def do_cmd(self):
-        import time
-        total_start_time = time.time()
-        self.vhdl_compile_time = 0
-        self.rtl_compile_time = 0
-        self.tb_compile_time = 0
-        self.elab_compile_time = 0
-        self.simulation_time = 0
-        if self.cmd_args.is_run:
-            #print(self.env_cfg)
-            #print(self.cmd_args)
+    def do_cmd(self) -> None:
+        """Execute the main command with performance tracking."""
+        self.perf_monitor.start()
+        
+        try:
+            if self.cmd_args.is_run:
+                self._handle_run_command()
+            elif self.cmd_args.is_verdi:
+                self.open_verdi()
+            elif self.cmd_args.is_make:
+                self._handle_make_command()
+            elif self.cmd_args.is_cov:
+                self._handle_cov_command()
+            elif self.cmd_args.is_vm:
+                self.open_vmanager()
+            elif self.cmd_args.is_vio:
+                self.collect_timing_violation()
+            elif self.cmd_args.is_clean:
+                self.delete_useless_file()
+            elif self.cmd_args.is_init:
+                self.env_cfg.init_env(self.cmd_args)
+            elif self.cmd_args.is_vmcomplink:
+                self.vmcomp_simv_link_vmcomp_path()
+            elif self.cmd_args.is_vdbmerge:
+                self._handle_vdbmerge_command()
+            elif self.cmd_args.is_vmsimclean:
+                self.vm_postrun_dir_vdb_clean()
+            elif self.cmd_args.is_vsif:
+                self.gen_vsif_from_testcases()
+                self.gen_testpkg_from_testcases()
+            elif self.cmd_args.is_help:
+                self.cmd_args.print_help_info()
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"Command execution failed: {e}")
+            raise
+        
+        self.perf_monitor.report()
+
+    def _handle_run_command(self) -> None:
+        """Handle run command with compilation and simulation."""
+        self.execute_c_compile_command()
+        
+        if self.cmd_args.is_incr_run:
+            self.execute_incremental_compile_command()
+        elif self.cmd_args.is_comp_rtl:
+            self.execute_compile_rtl_command()
+            return
+        elif self.cmd_args.is_comp_tb:
+            self.execute_compile_tb_command()
+            return
+        elif not (self.cmd_args.is_nocomp or self.cmd_args.is_vmnocomp):
+            self.execute_compile_command()
+        
+        if self.cmd_args.is_comp or self.cmd_args.is_vmcomp:
+            return
+        
+        self.execute_simulation_command()
+        
+        if not self.cmd_args.is_vmnocomp and self.cmd_args.is_regr:
+            self.link_coverage_vdb()
+
+    def _handle_make_command(self) -> None:
+        """Handle make command for C compilation."""
+        if len(self.cmd_args.test_c_files_path) == 0:
+            PubFunc.exit_err(f"The test_name({self.cmd_args.test_name}) doesn't have c case\n")
+        else:
             self.execute_c_compile_command()
-            if self.cmd_args.is_incr_run:
-                # Incremental compile flow
-                self.execute_incremental_compile_command()
-            elif self.cmd_args.is_comp_rtl:
-                # split-library flow : only the shared RTL library
-                self.execute_compile_rtl_command()
-                return True
-            elif self.cmd_args.is_comp_tb:
-                # split-library flow : only TB library + testcase
-                self.execute_compile_tb_command()
-                return True
-            elif not (self.cmd_args.is_nocomp or self.cmd_args.is_vmnocomp):
-                self.execute_compile_command()
-            if self.cmd_args.is_comp or self.cmd_args.is_vmcomp:
-                return True
-            self.execute_simulation_command()
-            if not self.cmd_args.is_vmnocomp and self.cmd_args.is_regr:
-                self.link_coverage_vdb()
-                #self.delete_regr_comp_result()
-        elif self.cmd_args.is_verdi:
-            self.open_verdi()
-        elif self.cmd_args.is_make:
-            if len(self.cmd_args.test_c_files_path) == 0:
-                PubFunc.exit_err("The test_name(%s) dosen't have c case\n" % self.cmd_args.test_name)
-            else:
-                self.execute_c_compile_command()
-        elif self.cmd_args.is_cov:
-            if self.cmd_args.is_vmnocomp:
-                self.link_vmcomp_path_coverage_vdb()
-            self.merge_vdb_and_open()
-        elif self.cmd_args.is_vm:
-            self.open_vmanager()
-        elif self.cmd_args.is_vio:
-            self.collect_timing_violation()
-        elif self.cmd_args.is_clean:
-            self.delete_useless_file()
-        elif self.cmd_args.is_init:
-            self.env_cfg.init_env(self.cmd_args)
-        elif self.cmd_args.is_vmcomplink:
-            self.vmcomp_simv_link_vmcomp_path()
-        elif self.cmd_args.is_vdbmerge:
+
+    def _handle_cov_command(self) -> None:
+        """Handle coverage analysis command."""
+        if self.cmd_args.is_vmnocomp:
             self.link_vmcomp_path_coverage_vdb()
-            self.analysis_coverage()
-            self.delete_vmcomp_vdb()
-        elif self.cmd_args.is_vmsimclean:
-            self.vm_postrun_dir_vdb_clean()
-        elif self.cmd_args.is_vsif:
-            self.gen_vsif_from_testcases()
-            self.gen_testpkg_from_testcases()
+        self.merge_vdb_and_open()
 
-        elif self.cmd_args.is_help:
-            self.cmd_args.print_help_info()
-
-        total_elapsed = time.time() - total_start_time
-        print("\n" + "="*60)
-        print("Time Summary:")
-        print("="*60)
-        if self.vhdl_compile_time > 0:
-            print("  VHDL Compile : %.2f seconds" % self.vhdl_compile_time)
-        if self.rtl_compile_time > 0:
-            print("  RTL Compile  : %.2f seconds" % self.rtl_compile_time)
-        if self.tb_compile_time > 0:
-            print("  TB Compile   : %.2f seconds" % self.tb_compile_time)
-        if self.elab_compile_time > 0:
-            print("  Elaboration  : %.2f seconds" % self.elab_compile_time)
-        if self.simulation_time > 0:
-            print("  Simulation   : %.2f seconds" % self.simulation_time)
-        print("  Total Time   : %.2f seconds" % total_elapsed)
-        print("="*60)
+    def _handle_vdbmerge_command(self) -> None:
+        """Handle VDB merge command."""
+        self.link_vmcomp_path_coverage_vdb()
+        self.analysis_coverage()
+        self.delete_vmcomp_vdb()
 
 if __name__ == '__main__':
-    cs_run = CSRun()
-    cs_run.parse_cmdargs(sys.argv)
-    cs_run.do_cmd()
+    try:
+        cs_run = CSRun()
+        cs_run.parse_cmdargs(sys.argv)
+        cs_run.do_cmd()
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

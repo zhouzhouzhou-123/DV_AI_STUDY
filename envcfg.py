@@ -2,7 +2,10 @@
 
 import os
 import re
+import logging
+from typing import List, Optional, Dict, Any
 import yaml
+logger = logging.getLogger("m_script")
 
 cur_scr_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -141,7 +144,7 @@ class EnvCfg:
         str_info += "========= %s End =========\n" % "EnvCfg"
         return str_info
 
-    def parse_env_cfg(self):
+    def parse_env_cfg(self) -> None:
         env_cfg_file = open(self.env_cfg_path, "r")
         env_cfg_info = env_cfg_file.read()
         #self.env_cfg_dict = yaml.load(env_cfg_info, Loader=yaml.FullLoader)
@@ -368,14 +371,14 @@ class EnvCfg:
             if self.env_cfg_dict["timing_violation_limit"] != None:
                 self.timing_violation_limit = int(self.env_cfg_dict["timing_violation_limit"])
 
-    def parse_duv_cfg(self):
+    def parse_duv_cfg(self) -> None:
         if os.path.isfile(self.duv_cfg_path):
             duv_cfg_file = open(self.duv_cfg_path, "r")
             duv_cfg_info = duv_cfg_file.read()
             self.duv_cfg_dict = yaml.load(duv_cfg_info, Loader=yaml.FullLoader)
             self.has_duv_cfg = True
 
-    def check_dirs(self):
+    def check_dirs(self) -> None:
         if not os.path.isdir(self.testcases_dir_path):
             PubFunc.exit_err("testcases_dir_path(%s) not exist!" % self.testcases_dir_path)
         if not os.path.isdir(self.scripts_dir_path):
@@ -393,7 +396,7 @@ class EnvCfg:
     def gen_tmp_veri_info(self):
         pass
 
-    def set_env(self):
+    def set_env(self) -> None:
         self.parse_env_cfg()
         self.parse_duv_cfg()
         self.check_env_cfg()
@@ -525,7 +528,7 @@ class EnvCfg:
         print(command_to_be_executed)
         os.system(command_to_be_executed)
 
-    def init_env(self, cmd_args):
+    def init_env(self, cmd_args: Any) -> None:
         if cmd_args.is_init_all or cmd_args.is_docmake:
             self.gen_doc_make()
             self.run_doc_make()

@@ -5,7 +5,10 @@ import sys
 import re
 import random
 import getpass
+import logging
+from typing import List, Optional, Dict, Any
 
+logger = logging.getLogger("m_script")
 from pubfunc import PubFunc
 
 MAX_ARGV_NUM = 9
@@ -515,7 +518,7 @@ class CmdArgs:
 
         return True
 
-    def parse_cmdargs(self):
+    def parse_cmdargs(self) -> None:
         if self.env_cfg.use_vmanager:
             cur_vm_session_name = os.environ.get("BRUN_SESSION_NAME")
             if cur_vm_session_name != None:
@@ -810,7 +813,7 @@ class CmdArgs:
             test_line = test_file.readline()
         test_file.close()
 
-    def post_process(self):
+    def post_process(self) -> None:
         if self.is_run:
             self.set_rand_seed()
             self.add_macros()
@@ -839,7 +842,7 @@ class CmdArgs:
         elif self.is_clean:
             self.set_test_dirs()
 
-    def print_help_info(self):
+    def print_help_info(self) -> None:
         help_info = '''\
 -------------------------------------------------------------------------------------
 
