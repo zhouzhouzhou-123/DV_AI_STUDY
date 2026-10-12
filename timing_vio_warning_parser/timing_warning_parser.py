@@ -16,7 +16,7 @@ import time
 import logging
 from collections import defaultdict
 
-# ─── Constants ───────────────────────────────────────────────────────────────
+# === Constants ===============================================================
 RULE_SKIP_STR = "-1"
 RULE_SKIP_INT = -1
 LINE_UNKNOWN = "unknown"
@@ -29,7 +29,7 @@ UNIT_MULTIPLIERS = {
     'ms': 1000000000
 }
 
-# ─── Pre-compiled regex patterns ────────────────────────────────────────────
+# === Pre-compiled regex patterns ============================================
 RE_WARNING = re.compile(
     r'Warning-(\[.*?\]) ([^\r\n]+)(?:\r?\n([^\r\n]*),\s*[\\\n]*(\d+))?\D?((.+\n)+)'
 )
@@ -42,7 +42,7 @@ RE_UVM_TESTNAME = re.compile(r'\+UVM_TESTNAME=(\S+)')
 RE_SEED = re.compile(r'\+ntb_random_seed=(-?\d+)')
 RE_DEFINE = re.compile(r'\+define\+([\w+]+)\+?')
 
-# ─── Logging setup ──────────────────────────────────────────────────────────
+# === Logging setup ==========================================================
 logger = logging.getLogger("timing_parser")
 
 
@@ -59,7 +59,7 @@ def setup_logging():
 setup_logging()
 
 
-# ─── Data classes ────────────────────────────────────────────────────────────
+# === Data classes ============================================================
 
 class Warning:
     """Represents a parsed warning from a log file."""
@@ -112,7 +112,7 @@ class TimingViolation:
                 f" {self.violation_content}\n")
 
 
-# ─── Utility functions ──────────────────────────────────────────────────────
+# === Utility functions ======================================================
 
 def convert_to_ps(time_str: str) -> int:
     """Convert a time string (e.g. '100ns') to picoseconds."""
@@ -145,7 +145,7 @@ def find_first_line(filename: str, target: str) -> int:
         return 0
 
 
-# ─── Parsing functions ──────────────────────────────────────────────────────
+# === Parsing functions ======================================================
 
 def parse_warnings_from_file(file_name: str) -> list:
     """Parse all warnings from a single log file."""
@@ -232,7 +232,7 @@ def extract_timing_violations(file_name: str, config: dict) -> list:
     return violations
 
 
-# ─── Filter functions ───────────────────────────────────────────────────────
+# === Filter functions =======================================================
 
 def _is_skip_value(value) -> bool:
     """Check if a value means 'skip this dimension' in cross-match rules."""
@@ -335,7 +335,7 @@ def filter_warnings(warnings: list, config: dict) -> list:
     return filtered
 
 
-# ─── Summary functions ──────────────────────────────────────────────────────
+# === Summary functions ======================================================
 
 def summarize_warning(warnings: list) -> tuple:
     """Summarize warnings by type, print to terminal, return summary lines."""
@@ -365,7 +365,7 @@ def summarize_vio(vios: list) -> tuple:
     return dict(vios_summary), lines
 
 
-# ─── Output functions ───────────────────────────────────────────────────────
+# === Output functions =======================================================
 
 def extract_log_info(log_path: str) -> tuple:
     """Extract UVM test info from a log file for traceability."""
@@ -407,7 +407,7 @@ def save_info(info_list: list, output_file: str):
                 f.write(str(item) + '\n')
 
 
-# ─── File matching ──────────────────────────────────────────────────────────
+# === File matching ==========================================================
 
 def get_matching_files(path: str, regex_pattern: str) -> list:
     """Recursively find files matching a regex pattern under a directory."""
@@ -442,7 +442,7 @@ def get_dedup_files(path: str, regex_patterns: list) -> list:
     return result
 
 
-# ─── Single-file processing ────────────────────────────────────────────────
+# === Single-file processing ================================================
 
 def do_warning_by_file(warning_log_path: str, config: dict) -> list:
     """Parse and filter warnings from a single file."""
@@ -456,7 +456,7 @@ def do_timing_violation_by_file(sim_log: str, config: dict) -> list:
     return filter_timing_violations(violations, config)
 
 
-# ─── Main processing pipelines ─────────────────────────────────────────────
+# === Main processing pipelines =============================================
 
 def process_simulation_logs(action: str, log_dir: str, config: dict,
                             output_dir: str) -> tuple:
@@ -515,7 +515,7 @@ def process_compilation_logs(action: str, log_dir: str, config: dict,
     return warning_result
 
 
-# ─── Argument parsing ───────────────────────────────────────────────────────
+# === Argument parsing =======================================================
 
 def set_default_json_path() -> str:
     """Build default JSON config path from WORK_DIR environment variable."""
@@ -597,7 +597,7 @@ def validate_json_file(json_path: str) -> dict:
         raise FileNotFoundError(f'{json_path} does not exist')
 
 
-# ─── Entry point ────────────────────────────────────────────────────────────
+# === Entry point ============================================================
 
 if __name__ == "__main__":
     status_code, action, json_path, log_dir, output_dir = parse_arguments()
