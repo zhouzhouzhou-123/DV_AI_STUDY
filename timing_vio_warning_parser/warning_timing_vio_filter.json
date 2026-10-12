@@ -1,0 +1,78 @@
+{
+    "comp_log_pattern": [
+        "comp_result/comp_.*.log$"
+    ],
+    "sim_log_pattern": [
+        ".*.log$"
+    ],
+    "timing_violation_signal": [
+        "top.saradc.u_sar_dig.bwd_ch_en_reg",
+        "top.saradc.u_sar_dig.t2a_sar_sample_neg_reg_\\d+",
+        "top.saradc.u_sar_dig.t2a\\w+_sar_sample_neg_reg"
+    ],
+    "file_and_line": [
+        {
+            "path": "verilog/sc12mc_40nmLP_base_rvt_c51.v",
+            "line_num": -1
+        },
+        {
+            "path": "verilog/sc12mc_40nmLP_base_rvt_c52.v",
+            "line_num": 102
+        }
+    ],
+    "violation_start_limit_global": "-1",
+    "cross_match": [
+        {
+            "path": "verilog/sc12mc_40nmLP_base_rvt_c53.v",
+            "line_num": 103,
+            "timing_violation_signal": "top.saradc.u_sar_dig.t2bac_sar_sample_neg_regd_2",
+            "timing_violation_keyword": "EXAMP_CLK"
+        },
+        {
+            "path": "verilog/sc12mc_40nmLP_base_rvt_c53.v",
+            "line_num": -1,
+            "timing_violation_signal": "top.saradc.u_sar_dig.t2bac_sar_sample_neg_regd_2"
+        },
+        {
+            "path": "verilog/sc12mc_40nmLP_base_rvt_c53.v",
+            "line_num": 200,
+            "timing_violation_signal": "-1"
+        }
+    ],
+    
+    "warning_type": [
+        "TMPOAA",
+        "ABC",
+        "EAANUMASSIGN"
+    ],
+    "cross_match_warning": [
+        {
+            "module_path": "hsm_top/hsm_top",
+            "line_num": -1,
+            "warning_info_keyword": "SYNOPSYS_UNCONNECTED_\\d+",
+            "warning_type": "IWNF"
+        },
+        {
+            "module_path": "force_con/adc_con.sv",
+            "line_num": -1,
+            "warning_info_keyword": "-1",
+            "warning_type": "SIOB"
+        },
+        {
+            "module_path": "verilog/sc12mc_40nmLP_base_[hrl]vt_c50",
+            "line_num": -1,
+            "warning_info_keyword": "-1",
+            "warning_type": "-1"
+        }
+    ],
+    "first_ignore_line":[
+        {
+          "specific_character": "wait global reset release done ....",
+          "enable_specific_character_filter": true
+        },
+        {
+          "specific_character": "this is example second key....",
+          "enable_specific_character_filter": true
+        }
+    ]
+}

@@ -1,0 +1,517 @@
+#!/usr/bin/env python3
+# FILE NAME      : timing_warning_parser.py
+# DEPARTMENT     : Digital Verification Department
+# AUTHOR         : xiayu
+# AUTHOR'S EMAIL : xiayu@chipsea.com
+# ABSTACT        :
+#
+#-------------------------------------------------------------------------
+import os
+import getopt
+import sys
+import json
+import re
+import time
+
+
+class Warning:
+    def __init__(self, warning_type, warning_description, file_path, line_num, input_file_name, log_name, info):
+        self.warning_type = warning_type
+        self.warning_description = warning_description
+        self.file_path = file_path
+        self.line_num = line_num
+        self.input_file_name = input_file_name
+        self.log_name = log_name
+        self.info = info
+
+    def __str__(self):
+        return f"Input File: {self.input_file_name},\n Warning Type: {self.warning_type}," \
+               f" Description: {self.warning_description}\n File Path: {self.file_path}, {self.line_num}\n\n"
+
+
+def parse_warnings_from_file(file_name):
+    warnings = []
+    try:
+        with open(file_name, 'r') as file:
+            content = file.read()
+            pattern = r'Warning-(\[.*?\]) ([^\r\n]+)(?:\r?\n([^\r\n]*),\s*[\\\n]*(\d+))?\D?((.+\n)+)'
+            matches = re.findall(pattern, content)
+            for match in matches:
+                warning_type = match[0].strip('[]')
+                warning_description= match[1]
+                file_path = match[2] if match[2] else "unknown"
+                line_num = match[3] if match[3] else "unknown"
+                info = match[4] if match[4] else "unknown"
+                log_name = file_name
+                warning = Warning(warning_type, warning_description, file_path, line_num, file_name,log_name,info)
+                warnings.append(warning)
+    except FileNotFoundError:
+        print(f"\033[1;31mError-[File not Found] The file {file_name} was not found.\033[0m")
+    except Exception as e:
+        print(f"\033[1;31mError-[Read Error] An error occurred while reading {file_name}: {e}\033[0m")
+    return warnings
+
+
+class TimingViolation:
+    def __init__(self, file_path, line_num, timing_violation_signal, log_path, violation_content,violation_time):
+        self.file_path = file_path
+        self.line_num = line_num
+        self.timing_violation_signal = timing_violation_signal
+        self.log_path = log_path
+        self.violation_content = violation_content
+        self.violation_time = violation_time
+
+    def __repr__(self):
+        return f"Log Path: {self.log_path}\nTiming Violation - File: {self.file_path}, Line: {self.line_num}," \
+               f"\nSignal: {self.timing_violation_signal}, Log: {self.log_path}\n {self.violation_content}\n"
+
+
+def find_first_line(filename, target):
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:
+            for line_num, line in enumerate(file, 1):
+                if target in line:
+                    return line_num
+            return 0
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found")
+        return 0
+    except Exception as e:
+        print(f"Error: An exception occurred while reading the file: {e}")
+        return 0
+
+def extract_timing_violations(file_name, config):
+    violations = []
+    line_num_max = 0
+    for ignore_rule in config.get("first_ignore_line", []):
+        enable_filter = ignore_rule["enable_specific_character_filter"]
+        specific_character = ignore_rule["specific_character"]
+        if enable_filter:
+            specific_line_num = find_first_line(file_name,specific_character)
+        else:
+            specific_line_num = 0
+        line_num_max = specific_line_num if specific_line_num > line_num_max else line_num_max
+
+    try:
+        with open(file_name, 'r') as file:
+            lines = file.readlines()
+    except FileNotFoundError:
+        print(f"\033[1;31mError-[File not Found] The file {file_name} was not found.\033[0m")
+    except Exception as e:
+        print(f"\033[1;31mError-[Read Error] An error occurred while reading {file_name}: {e}\033[0m")
+    
+    new_lines = []
+    if line_num_max > 0:
+        new_lines = ["\n"] * line_num_max
+        new_lines.extend(lines[line_num_max - 1:])
+    else:
+        new_lines = lines
+    content = "".join(new_lines)
+
+    pattern = r'"([^"]+)",\s*(\d+):\s*Timing violation in (\S+)\n(.*)'
+    pattern_time = r':\d+(ns|ms|us|ps)'
+    matches = re.findall(pattern, content)
+    for match in matches:
+        file_path = match[0]
+        line_num = match[1]
+        timing_violation_signal = match[2]
+        violation_content = match[3]
+        match_time = re.search(pattern_time,violation_content)
+
+        if match_time:
+            violation_time = convert_to_ps(match_time.group().lstrip(':'))
+        else:
+            print("do not contain time")
+
+        violation = TimingViolation(file_path, line_num, timing_violation_signal, file_name, violation_content,violation_time)
+        violations.append(violation)
+
+    return violations
+
+
+def filter_timing_violations(violations, config):
+    filtered_violations = []
+    for violation in violations:
+        should_keep = True
+
+        vio_start_time_global = config.get("violation_start_limit_global")
+        if vio_start_time_global is not None:
+            if vio_start_time_global == "-1":
+                should_keep = True
+            else:
+                converted_time = convert_to_ps(vio_start_time_global)
+                if converted_time is not None and converted_time >= violation.violation_time:
+                    should_keep = False
+
+        for signal_pattern in config.get("timing_violation_signal", []):
+            if re.fullmatch(signal_pattern, violation.timing_violation_signal):
+                should_keep = False
+                break
+
+        for file_line_rule in config.get("file_and_line", []):
+            path = file_line_rule["path"]
+            line_num = file_line_rule["line_num"]
+            if (path == "-1" or path == ""):
+                continue
+            if (re.search(path,violation.file_path)) and (line_num == -1 or line_num == int(violation.line_num)):
+                should_keep = False
+                break
+
+        for cross_match_rule in config.get("cross_match", []):
+            path = cross_match_rule["path"]
+            line_num = cross_match_rule["line_num"]
+            signal = cross_match_rule["timing_violation_signal"]
+            keyword = cross_match_rule.get("timing_violation_keyword", "-1")
+            path_match = (path == "-1" or path == "")
+            line_match = (line_num == -1)
+            signal_match = (signal == "-1" or signal == "")
+            keyword_match = (keyword == "-1" or keyword == "")
+            if path_match and line_match and signal_match and keyword_match:
+                continue
+            if (path_match or re.search(path,violation.file_path)) and \
+                    (line_match or line_num == int(violation.line_num)) and \
+                    (signal_match or re.search(signal, violation.timing_violation_signal)) and \
+                    (keyword_match or re.search(keyword, violation.violation_content)):
+                should_keep = False
+                break
+        if should_keep:
+            filtered_violations.append(violation)
+    return filtered_violations
+
+
+def filter_warnings(warnings, config):
+    filtered_warnings = []
+    for warning in warnings:
+        should_keep = True
+        for warning_type_pattern in config.get("warning_type", []):
+            if re.fullmatch(warning_type_pattern, warning.warning_type):
+                should_keep = False
+                break
+        for cross_match_rule in config.get("cross_match_warning", []):
+            path = cross_match_rule["module_path"]
+            line_num = cross_match_rule["line_num"]
+            warning_type = cross_match_rule["warning_type"]
+            key_word = cross_match_rule["warning_info_keyword"]
+            if (path == "-1" or re.search(path,warning.file_path)) and \
+                    (line_num == -1 or line_num == warning.line_num) and \
+                    (warning_type == "-1" or warning_type == warning.warning_type) and \
+                    (re.search(key_word, warning.info) or key_word == "-1"):
+                should_keep = False
+                break
+        if should_keep:
+            filtered_warnings.append(warning)
+    return filtered_warnings
+
+
+def summarize_warning(warnings):
+    warning_summary = {}
+    for warning in warnings:
+        warning_type = warning.warning_type
+        if warning_type not in warning_summary:
+            warning_summary[warning_type] = 0
+        warning_summary[warning_type] += 1
+    print("warning summary")
+    lines = ["warning summary"]
+    for warning_type, count in sorted(warning_summary.items(), key=lambda item: item[1], reverse=True):
+        print(f"warning_type:\033[1;31m{warning_type}\033[0m,\t\tcount: \033[1;30m{count}\033[0m")
+        lines.append(f"warning_type: {warning_type},\t\tcount: {count}")
+    return warning_summary, lines
+
+
+def summarize_vio(vios):
+    vios_summary = {}
+    for vio in vios:
+        signal = vio.timing_violation_signal
+        if signal not in vios_summary:
+            vios_summary[signal] = 0
+        vios_summary[signal] += 1
+    print("vio summary by signal")
+    lines = ["vio summary by signal"]
+    for signal, count in sorted(vios_summary.items()):
+        print(f"signal: \033[1;31m{signal}\033[0m,\t\tcount: \033[1;30m{count}\033[0m")
+        lines.append(f"signal: {signal},\t\tcount: {count}")
+    return vios_summary, lines
+
+
+def extract_log_info(log_path):
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        testname_match = re.search(r'\+UVM_TESTNAME=(\S+)', content)
+        seed_match = re.search(r'\+ntb_random_seed=(-?\d+)', content)
+        define_match = re.search(r'\+define\+([\w+]+)\+?', content)
+        testname = testname_match.group(1) if testname_match else "N/A"
+        seed = seed_match.group(1) if seed_match else "N/A"
+        if define_match:
+            macros = define_match.group(1).split('+')
+            macros = [m for m in macros if m]
+        else:
+            macros = []
+        return testname, seed, macros
+    except Exception:
+        return "N/A", "N/A", []
+
+
+def save_info(info_list, output_file):
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for item in info_list:
+        if hasattr(item, 'log_path'):
+            grouped[item.log_path].append(item)
+        else:
+            grouped['unknown'].append(item)
+    
+    with open(output_file, 'w', encoding='utf-8') as f:
+        for log_path, items in grouped.items():
+            testname, seed, macros = extract_log_info(log_path)
+            f.write('\n' + '='*80 + '\n')
+            f.write(f'\033[1;35m{"="*15} SOURCE LOG: {log_path} {"="*15}\033[0m\n')
+            f.write(f'\033[1;33m  UVM_TESTNAME: {testname}  |  ntb_random_seed: {seed}\033[0m\n')
+            if macros:
+                f.write(f'\033[1;36m  DEFINES: {", ".join(macros)}\033[0m\n')
+            f.write('='*80 + '\n\n')
+            for item in items:
+                f.write(str(item) + '\n')
+
+
+def preprocess_file_with_re(file_name, regex_pattern):
+    if not os.path.isfile(file_name):
+        print(f"\033[1;31mError-[File not Found] The file {file_name} does not exist.\033[0m")
+        return
+    try:
+        filtered_lines = []
+        with open(file_name, 'r', encoding='utf-8') as file:
+            for line in file:
+                if not re.search(regex_pattern, line):
+                    filtered_lines.append(line)
+        return filtered_lines
+    except Exception as e:
+        print(f"\033[1;31mError-[Processing Error] Failed to process {file_name}: {e}\033[0m")
+
+
+def do_warning_by_file(warning_log_path, config):
+    warnings = parse_warnings_from_file(warning_log_path)
+    return filter_warnings(warnings, config)
+
+
+def do_timing_violation_by_file(sim_log, config):
+    warnings = extract_timing_violations(sim_log, config)
+    return filter_timing_violations(warnings, config)
+
+
+def get_matching_files(path, regex_pattern):
+    file_list = []
+    try:
+        pattern = re.compile(regex_pattern)
+    except re.error:
+        raise ValueError(f"\033[1;31mError-[Pattern Invalid]Invalid regular expression pattern: {regex_pattern}\033[0m")
+
+    if not os.path.exists(path):
+        print(f"\033[1;31mError-[Path not Found] The path {path} does not exist.\033[0m")
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            if pattern.search(file_path):
+                file_list.append(file_path)
+    return file_list
+
+def set_default_json_path():
+    work_dir = os.environ.get('WORK_DIR')
+    json_path = None
+    if work_dir is None:
+        print("\033[1;31mWarning-[Env Variable Missing] do not set WORK_DIR\033[0m")
+    else:
+        json_path = work_dir + "/setup/warning_timing_vio_filter.json"
+    return json_path
+
+
+def parse_arguments():
+    action = "both"  # default action
+    json_path = set_default_json_path()
+    log_dir = None
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "cshf:", ["comp", "sim", "help", "file"])
+        for opt, arg in opts:
+            if opt in ("-c", "--comp"):
+                action = "comp"
+            if opt in ("-s", "--sim"):
+                action = "sim"
+            if opt in ("-f", "--file"):
+                json_path = arg
+            if opt in ("-h", "--help"):
+                print("\033[36mtiming_warning_parser.py result #both comp & simulation,result is target dir,config is default\033[0m")
+                print("\033[36mtiming_warning_parser.py -s result #only simulation\033[0m")
+                print("\033[36mtiming_warning_parser.py -c result #only compile\033[0m")
+                print("\033[36mtiming_warning_parser.py -f./rule.json result #simulation and specify config file\033[0m")
+                return -1, action, json_path, log_dir
+
+        if len(args) == 0:
+            print("\033[1;31mError-[Log Dir Missing] do not set log dir\033[0m")
+            return -1, action, json_path, log_dir
+        else:
+            log_dir = args[0]
+            if not os.path.exists(log_dir):
+                print(f"\033[1;31mError-[Path not Found] The specified log directory {log_dir} does not exist.\033[0m")
+                return -1, action, json_path, log_dir
+
+        print("please wait for it complete")
+        return 0, action, json_path, log_dir
+    except getopt.GetoptError as e:
+        print(f"\033[1;31mError-[Getopt Error] {e}\033[0m")
+        return -1, action, json_path, log_dir
+
+def process_simulation_logs(action, log_dir, config):
+    sim_file_list = []
+    sim_warning_result = []
+    timing_violation_result = []
+    if action in ["both", "sim"]:
+        for log_pattern in config.get("sim_log_pattern", []):
+            single_sim_file_list = get_matching_files(log_dir, log_pattern)
+            sim_file_list.extend(single_sim_file_list)
+        sim_file_list = list(dict.fromkeys(sim_file_list))
+        if not sim_file_list:
+            print("\033[1;33mWarning-[Filelist Empty] No simulation log files found\033[0m")
+        else:
+            for file in sim_file_list:
+                print(file)
+            for sim_log_path in sim_file_list:
+                sim_log_path = sim_log_path.strip()
+                print(f"begin {sim_log_path}")
+                sim_warning_result.extend(do_warning_by_file(sim_log_path, config))
+                timing_violation_result.extend(do_timing_violation_by_file(sim_log_path, config))
+                print('Success gen sim timing violation result')
+            save_info(timing_violation_result, "filtered_timing_violations.txt")
+            save_info(sim_warning_result, "filtered_warnings_in_sim.txt")
+    return sim_warning_result, timing_violation_result
+
+
+def process_compilation_logs(action, log_dir, config):
+    comp_file_list = []
+    warning_result = []
+    if action in ["both", "comp"]:
+        for log_pattern in config.get("comp_log_pattern", []):
+            single_comp_file_list = get_matching_files(log_dir, log_pattern)
+            comp_file_list.extend(single_comp_file_list)
+        comp_file_list = list(dict.fromkeys(comp_file_list))
+        if not comp_file_list:
+            print("\033[1;31mWarning: No compilation log files found.\033[0m")
+        else:
+            for file in comp_file_list:
+                print(file)
+            for comp_file_path in comp_file_list:
+                comp_file_path = comp_file_path.strip()
+                print(f"begin {comp_file_path}")
+                warning_result.extend(do_warning_by_file(comp_file_path, config))
+                print("Success gen comp warning log")
+            save_info(warning_result, "filtered_warnings.txt")
+    return warning_result
+
+def validate_json_file(json_path):
+    if json_path:
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            print(f"json_path is {json_path}")
+            return config
+        except json.JSONDecodeError:
+            print(f"\033[1;31mError-[Invalid JSON] {json_path} is an invalid JSON file.\033[0m")
+            raise ValueError(f'{json_path} is invalid')
+        except FileNotFoundError:
+            print(f"\033[1;31mError-[File not Found] The file {json_path} was not found.\033[0m")
+            raise FileNotFoundError(f'do not exist {json_path}')
+    return None
+
+UNIT_MULTIPLIERS = {
+    'ps': 1,
+    'ns': 1000,
+    'us': 1000000,
+    'ms': 1000000000
+}
+
+def convert_to_ps(time_str):
+    pattern = r'(\d+)(ps|ns|ms|us)'
+    match = re.search(pattern, time_str)
+    if match:
+        value = int(match.group(1))
+        unit = match.group(2)
+        return value * UNIT_MULTIPLIERS[unit]
+    else:
+        print(f"\033[1;31mError-[Invalid Time String] {time_str} is an invalid time string.\033[0m")
+        return None
+
+if __name__ == "__main__":
+    warning_result = []
+    sim_warning_result = []
+    timing_violation_result = []
+    comp_file_list = []
+    sim_file_list = []
+    sim_warning_lines = []
+    vio_lines = []
+    comp_warning_lines = []
+    opts = None
+    args = None
+
+    status_code, action, json_path, log_dir = parse_arguments()
+    if status_code != 0:
+        sys.exit(status_code)
+        
+    config = validate_json_file(json_path)
+        
+    start_time = time.time()
+    sim_warning_result, timing_violation_result = process_simulation_logs(action, log_dir, config)
+    end_sim_time = time.time()
+    warning_result = process_compilation_logs(action, log_dir, config)
+    end_comp_time = time.time()
+
+    if (action == "both") or (action == "sim"):
+        print(f"\033[1;32mSimulation Analysis Time: {end_sim_time - start_time:.2f} s\033[0m")
+        if not sim_warning_result:
+            print("\033[1;33mWarning-[Result Empty] No simulation warning found\033[0m")
+        else:
+            print("\033[1;36m************************Sim Warning Summary************************\033[0m")
+            _, sim_warning_lines = summarize_warning(sim_warning_result)
+        if not timing_violation_result:
+            print("\033[1;33mWarning-[Result Empty]: No simulation timing violations found.\033[0m")
+        else:
+            print("\033[1;36m************************Sim Violations Summary************************\033[0m")
+            _, vio_lines = summarize_vio(timing_violation_result)
+    if (action == "both") or (action == "comp"):
+        print(f"\033[1;32mCompile Analysis Time: {end_comp_time - end_sim_time:.2f} s\033[0m")
+        if not warning_result:
+            print("\033[1;31mWarning: No compilation warnings found.\033[0m")
+        else:
+            print("\033[1;36m************************Comp Warning Summary************************\033[0m")
+            _, comp_warning_lines = summarize_warning(warning_result)
+
+    summary_lines = []
+    generated_files = []
+    if (action == "both") or (action == "sim"):
+        if sim_warning_result:
+            summary_lines.append("************************Sim Warning Summary************************")
+            summary_lines.extend(sim_warning_lines)
+        if timing_violation_result:
+            summary_lines.append("************************Sim Violations Summary************************")
+            summary_lines.extend(vio_lines)
+    if (action == "both") or (action == "comp"):
+        if warning_result:
+            summary_lines.append("************************Comp Warning Summary************************")
+            summary_lines.extend(comp_warning_lines)
+    if summary_lines:
+        with open("filtered_summary.txt", 'w', encoding='utf-8') as f:
+            f.write('\n'.join(summary_lines))
+        generated_files.append(os.path.abspath("filtered_summary.txt"))
+    
+    print("\n\033[1;32mGenerated files:\033[0m")
+    if (action == "both") or (action == "sim"):
+        if os.path.exists("filtered_warnings_in_sim.txt"):
+            generated_files.append(os.path.abspath("filtered_warnings_in_sim.txt"))
+            print(f"  Warning log:      {os.path.abspath('filtered_warnings_in_sim.txt')}")
+        if os.path.exists("filtered_timing_violations.txt"):
+            generated_files.append(os.path.abspath("filtered_timing_violations.txt"))
+            print(f"  Timing vio log:   {os.path.abspath('filtered_timing_violations.txt')}")
+    if (action == "both") or (action == "comp"):
+        if os.path.exists("filtered_warnings.txt"):
+            generated_files.append(os.path.abspath("filtered_warnings.txt"))
+            print(f"  Comp warning log: {os.path.abspath('filtered_warnings.txt')}")
+    if os.path.exists("filtered_summary.txt"):
+        print(f"  Summary log:      {os.path.abspath('filtered_summary.txt')}")

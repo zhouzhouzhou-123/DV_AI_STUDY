@@ -1,0 +1,23 @@
+{
+    "comp_log_pattern": [
+        "comp_result/comp_.*.log$"
+    ],
+    "sim_log_pattern": [
+        ".*.log$"
+    ],
+    "timing_violation_signal": [
+        "top.u_chip.top.u_sysbus.rst_ctrl.U_DFTOccIP.\\d+.U_DFTClkMuxIP.\\d+.async_bist_data_\\d+_reg"
+    ],
+    "file_and_line": [],
+    "violation_start_limit_global": "-1",
+    "cross_match": [
+        {
+            "path": "sc9mc_40nmLP_base_lvt_c50.v",
+            "line_num": 145704,
+            "timing_violation_signal": "top.u_chip.top.u_sysbus.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_\\d+_reg"
+        }
+    ],
+    "warning_type": [],
+    "cross_match_warning": [],
+    "first_ignore_line": []
+}
