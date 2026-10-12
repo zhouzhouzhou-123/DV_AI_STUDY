@@ -1,0 +1,51 @@
+
+================================================================================
+[1;35m=============== SOURCE LOG: ./local_log.log ===============[0m
+[1;33m  UVM_TESTNAME: N/A  |  ntb_random_seed: N/A[0m
+================================================================================
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 14211,
+Signal: top.u_chip.top.u_sysbus.rst_ctrl.U_DFTOccIP.2.U_DFTClkMuxIP.2.async_bist_data_0_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_SI == 1'b1);24ps, negedge SE:0ps, limits: (44ps,-20ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 14211,
+Signal: top.u_chip.top.u_sysbus.rst_ctrl.U_DFTOccIP.2.U_DFTClkMuxIP.2.async_bist_data_1_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_SI == 1'b1);24ps, negedge SE:0ps, limits: (44ps,-20ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 145704,
+Signal: top.u_chip.top.u_sysbus.core_occ_ctrl_upper.U_DFTOccIP.1.U_DFTClkMuxIP.1.clk_bist_data_0_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_R_AND_NOT_SI_AND_SN == 1'b1);20ps, negedge SE:0ps, limits: (51ps,-17ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 145704,
+Signal: top.u_chip.top.u_uncore_top.core_occ_ctrl_upper.U_DFTOccIP.1.U_DFTClkMuxIP.1.clk_bist_data_0_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_R_AND_NOT_SI_AND_SN == 1'b1);20ps, negedge SE:0ps, limits: (51ps,-17ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 145704,
+Signal: top.u_chip.top.u_sysbus.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_2_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_R_AND_NOT_SI_AND_SN == 1'b1);29ps, negedge SE:0ps, limits: (51ps,-17ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 145704,
+Signal: top.u_chip.top.u_sysbus.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_0_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_R_AND_NOT_SI_AND_SN == 1'b1);29ps, negedge SE:0ps, limits: (51ps,-17ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 145704,
+Signal: top.u_chip.top.u_sysbus.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_1_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_R_AND_NOT_SI_AND_SN == 1'b1);29ps, negedge SE:0ps, limits: (51ps,-17ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 145704,
+Signal: top.u_chip.top.u_sysbus.U_DFT_TOP_IP.0.U_mutex.ate_clken_sync_dfty_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_R_AND_NOT_SI_AND_SN == 1'b1);31ps, negedge SE:0ps, limits: (51ps,-17ps) );
+
+Log Path: ./local_log.log
+Timing Violation - File: /vendor/GF/40nm/atv/arm/arm/gf/40nmLP/sc9mc_base_lvt_c50/r0p0/verilog/sc9mc_40nmLP_base_lvt_c50.v, Line: 145704,
+Signal: top.u_chip.top.u_uncore_top.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_2_reg, Log: ./local_log.log
+     $setuptold( negedge CKN &&& (ENABLE_D_AND_NOT_R_AND_NOT_SI_AND_SN == 1'b1);45ps, negedge SE:0ps, limits: (51ps,-17ps) );
+

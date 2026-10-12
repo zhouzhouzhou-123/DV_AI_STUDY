@@ -31,7 +31,7 @@ UNIT_MULTIPLIERS = {
 
 # === Pre-compiled regex patterns ============================================
 RE_WARNING = re.compile(
-    r'Warning-(\[.*?\]) ([^\r\n]+)(?:\r?\n([^\r\n]*),\s*[\\\n]*(\d+))?\D?((.+\n)+)'
+    r'Warning-(\[.*?\]) ([^\r\n]+)(?:\r?\n([^\r\n]*),\s*[\\\n]*(\d+))?\D?((?:(?!Warning-\[).+\n)*)'
 )
 RE_TIMING_VIO = re.compile(
     r'"([^"]+)",\s*(\d+):\s*Timing violation in (\S+)\n(.*)'
@@ -148,29 +148,75 @@ def find_first_line(filename: str, target: str) -> int:
 # === Parsing functions ======================================================
 
 def parse_warnings_from_file(file_name: str) -> list:
-    """Parse all warnings from a single log file."""
+    """Parse all warnings from a single log file using streaming approach for large files."""
     warnings = []
+    current_warning = None
+    info_lines = []
+    
     try:
-        with open(file_name, 'r', encoding='utf-8') as file:
-            content = file.read()
-        matches = RE_WARNING.findall(content)
-        for match in matches:
-            warning_type = match[0].strip('[]')
-            warning_description = match[1]
-            file_path = match[2] if match[2] else LINE_UNKNOWN
-            line_num = match[3] if match[3] else LINE_UNKNOWN
-            info = match[4] if match[4] else LINE_UNKNOWN
-            warning = Warning(warning_type, warning_description, file_path,
-                              line_num, file_name, file_name, info)
-            warnings.append(warning)
+        with open(file_name, 'r', encoding='utf-8', errors='replace') as file:
+            for line in file:
+                # 检测新的 Warning 开始
+                if line.startswith('Warning-['):
+                    # 保存上一个 warning
+                    if current_warning:
+                        current_warning['info'] = ''.join(info_lines) if info_lines else LINE_UNKNOWN
+                        w = Warning(
+                            current_warning['type'],
+                            current_warning['desc'],
+                            current_warning['file'],
+                            current_warning['line'],
+                            file_name,
+                            file_name,
+                            current_warning['info']
+                        )
+                        warnings.append(w)
+                        info_lines = []
+                    
+                    # 解析新 warning 的第一行
+                    match = re.match(r'Warning-(\[.*?\])\s+(.+)', line)
+                    if match:
+                        warning_type = match.group(1).strip('[]')
+                        warning_description = match.group(2).strip()
+                        current_warning = {
+                            'type': warning_type,
+                            'desc': warning_description,
+                            'file': LINE_UNKNOWN,
+                            'line': LINE_UNKNOWN
+                        }
+                elif current_warning:
+                    # 检测文件路径行（格式：/path/to/file.v, 123）
+                    file_match = re.match(r'\s*([^,]+),\s*(\d+)', line)
+                    if file_match and current_warning['file'] == LINE_UNKNOWN:
+                        current_warning['file'] = file_match.group(1).strip()
+                        current_warning['line'] = file_match.group(2)
+                    else:
+                        # 收集 info 行
+                        info_lines.append(line)
+            
+            # 保存最后一个 warning
+            if current_warning:
+                current_warning['info'] = ''.join(info_lines) if info_lines else LINE_UNKNOWN
+                warning = Warning(
+                    current_warning['type'],
+                    current_warning['desc'],
+                    current_warning['file'],
+                    current_warning['line'],
+                    file_name,
+                    file_name,
+                    current_warning['info']
+                )
+                warnings.append(warning)
+                
     except FileNotFoundError:
         logger.error(f"Error-[File not Found] The file {file_name} was not found.")
     except PermissionError:
         logger.error(f"Error-[Permission Denied] Cannot read {file_name}.")
-    except UnicodeDecodeError:
-        logger.error(f"Error-[Encoding] Failed to decode {file_name} as UTF-8.")
+    except MemoryError:
+        logger.error(f"Error-[Memory] Out of memory while reading {file_name}")
     except Exception as e:
         logger.error(f"Error-[Read Error] An error occurred while reading {file_name}: {e}")
+    
     return warnings
 
 

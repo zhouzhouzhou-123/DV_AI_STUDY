@@ -1,0 +1,14 @@
+************************Sim Warning Summary************************
+warning summary
+warning_type: TMPOAA,		count: 1
+************************Sim Violations Summary************************
+vio summary by signal
+signal: top.u_chip.top.u_sysbus.U_DFT_TOP_IP.0.U_mutex.ate_clken_sync_dfty_reg,		count: 1
+signal: top.u_chip.top.u_sysbus.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_0_reg,		count: 1
+signal: top.u_chip.top.u_sysbus.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_1_reg,		count: 1
+signal: top.u_chip.top.u_sysbus.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_2_reg,		count: 1
+signal: top.u_chip.top.u_sysbus.core_occ_ctrl_upper.U_DFTOccIP.1.U_DFTClkMuxIP.1.clk_bist_data_0_reg,		count: 1
+signal: top.u_chip.top.u_sysbus.rst_ctrl.U_DFTOccIP.2.U_DFTClkMuxIP.2.async_bist_data_0_reg,		count: 1
+signal: top.u_chip.top.u_sysbus.rst_ctrl.U_DFTOccIP.2.U_DFTClkMuxIP.2.async_bist_data_1_reg,		count: 1
+signal: top.u_chip.top.u_uncore_top.core_occ_ctrl_local.U_DFTOccIP.0.U_DFTClkMuxIP.0.clk_bist_data_2_reg,		count: 1
+signal: top.u_chip.top.u_uncore_top.core_occ_ctrl_upper.U_DFTOccIP.1.U_DFTClkMuxIP.1.clk_bist_data_0_reg,		count: 1

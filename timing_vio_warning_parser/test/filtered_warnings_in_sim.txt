@@ -1,0 +1,11 @@
+
+================================================================================
+[1;35m=============== SOURCE LOG: unknown ===============[0m
+[1;33m  UVM_TESTNAME: N/A  |  ntb_random_seed: N/A[0m
+================================================================================
+
+Input File: ./test_ntcdnc.log,
+ Warning Type: TMPOAA, Description: Some other warning
+ File Path: /path/to/file.v, 100
+
+
