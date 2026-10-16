@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.swp
+*.swo
+*~
+1
+tmp_*/
+unmerge_cell_temp_*.xlsx

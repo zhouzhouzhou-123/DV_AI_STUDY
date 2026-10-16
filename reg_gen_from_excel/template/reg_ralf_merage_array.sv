@@ -1,0 +1,111 @@
+{%- macro get_ralf_access(access) -%}
+    {%- set normalized_access = access | upper if access else '' -%}
+    {%- set access_map = {
+        "RO": "ro",
+        "RW": "rw",
+        "RC_R": "rc",
+        "RC_W1": "w1c",
+        "RC_W0": "w0c",
+        "RS": "rs",
+        "WO": "wo"
+    } -%}
+    {{ access_map.get(normalized_access, 'unknown') }}
+{%- endmacro -%}
+
+{%- macro format_register_name(raw_reg_name, address_str) -%}
+    {%- if 'n:' not in address_str -%}
+        {{ raw_reg_name|lower }}
+    {%- else -%}
+        {%- set cleaned_reg_name = raw_reg_name | replace('n', '') -%}
+        
+        {%- set n_range_start = address_str.find('n:') + 2 -%}
+        {%- set n_range_end = address_str.find(')', n_range_start) -%}
+        {%- if n_range_end == -1 %}{% set n_range_end = address_str|length %}{% endif -%}
+        {%- set range_str = address_str[n_range_start:n_range_end].strip() -%}
+        
+        {%- set range_parts = range_str.split('..') -%}
+        {%- if range_parts|length == 2 -%}
+            {%- set min_val = range_parts[0]|int -%}
+            {%- set max_val = range_parts[1]|int -%}
+            {%- set size = (max_val - min_val)|abs + 1 -%}
+            
+            {{ cleaned_reg_name|lower }}[{{ size }}]
+        {%- else -%}
+            {{ cleaned_reg_name|lower }}
+        {%- endif -%}
+    {%- endif -%}
+{%- endmacro %}
+
+{%- macro format_addr_with_step(raw_offset) -%}
+    {%- set star_pos = raw_offset.find('*') -%}
+    {%- if star_pos != -1 -%}
+        {{ raw_offset[:star_pos].strip() }}
+    {%- else -%}
+        {{ raw_offset }}
+    {%- endif -%}
+{%- endmacro %}
+
+{%- macro format_field_name(field_name) -%}
+    {%- set suffix_start = field_name.rfind('(x=') -%}
+    {%- set suffix_end = field_name.rfind(')') -%}
+    
+    {%- if suffix_start != -1 and suffix_end != -1 and suffix_end > suffix_start + 3 -%}
+        {%- set prefix = field_name[:suffix_start] -%}
+        {%- set range_str = field_name[suffix_start + 3 : suffix_end] -%}
+        {%- set dash_pos = range_str.find('-') -%}
+        {%- if dash_pos != -1 -%}
+            {%- set start = range_str[:dash_pos]|int -%}
+            {%- set end = range_str[dash_pos + 1:]|int -%}
+            {%- set width = (start - end)|abs + 1 -%}
+            {{ prefix|lower|replace('x', '') }}[{{ width }}]
+        {%- else -%}
+            {{ field_name|lower|replace('x', '') }}
+        {%- endif -%}
+    {%- else -%}
+        {{ field_name|lower }}
+    {%- endif -%}
+{%- endmacro -%}
+    
+
+{%- macro generate_user_code(register) -%}
+    {% if register.write_mode is defined and register.read_mode is defined and register.write_mode and register.read_mode -%}
+        user_code lang=SV {
+            string write_mode;
+            string read_mode;
+            virtual function string get_write_mode();
+                return write_mode;
+            endfunction
+
+            virtual function string get_read_mode();
+                return read_mode;
+            endfunction
+        }
+        user_code lang=SV (new) {
+            this.write_mode = "{{ register.write_mode|upper|trim }}";
+            this.read_mode = "{{ register.read_mode|upper|trim }}";
+        }
+    {% endif %}
+{%- endmacro -%}
+
+block {{module_name|lower|trim}}_regmodel {
+    bytes {{reg_gap|int}};
+    {{'\n'}}
+    {%- for register in registers -%}
+{% if register.register_num != None -%}
+{{'\t'}}register {{format_register_name(register.reg_name,register.address_offset)}}[0:{{register.register_num|int-1}}] @{{format_addr_with_step(register.address_offset)}}+{{format_addr_with_step(register.order_offset)}} {{'{'}} {{'\n'}}
+{%- else -%}    
+{{'\t'}}register {{format_register_name(register.reg_name,register.address_offset)}} @{{format_addr_with_step(register.address_offset)}} {{'{'}} {{'\n'}}
+{%- endif -%}
+
+{{'\t\t'}}{{ generate_user_code(register) }}
+        {%- for field in register.fields|sort(attribute='start_bit',reverse=true) -%}
+{%- if (field.field_name|lower) != "reserved" -%}
+{{'\t\t'}}field  {{format_field_name(field.field_name)}}@'d{{field.start_bit|int}} {
+{{'\t\t\t'}}bits {{field.get_field_size()|int}};
+ {{'\t\t\t'}}access {{get_ralf_access(field.field_attribute)}};
+ {{'\t\t\t'}}reset 'h{{"{:0X}".format(field.get_field_reset_value_int())}};
+{{'\t\t'}}}{{'\n'}}{%- endif -%}
+        {%- endfor -%}
+{{'\t'}}}{{'\n'}}
+    {%- endfor %}
+}

@@ -1,0 +1,48 @@
+regsheet_format:
+    skip_rows : 2
+    usecols: "A,C:H,J:L"
+    reg_name: "Register Name"
+    reg_desc: "Description"
+    reg_addr: "Address Offset"
+    reg_reset_value: "Reset_Value"
+    field_name: "Field Name"
+    field_bits: "Bits"
+    field_access: "Field Attribute"
+    field_reset_value: "Field Reset Value"
+    access_mode_exist: False 
+    reset_field_exist: False       
+    wr_access_mode: "Write"
+    rd_access_mode: "Read"
+    reset_field: "Reset"
+    field_desc: "Field Comments"
+ut_cfg:
+    rsv_ro_attr_chk: 
+       True 
+    ut_bus_write_opt:
+       apb_write
+    ut_bus_read_opt:
+       apb_read
+    ut_item_gen: 
+       True 
+    ut_reg_item_gen:
+       True
+    ut_path_cfg:
+
+    ut_reg_item_dirname:
+        cfg
+    ut_define_dirname:
+        common
+    ut_testcase_dirname:
+        testcases
+    ut_reg_saddr:
+        0x0000_0000
+    ut_reg_eaddr:
+        0x0000_3ffc
+
+template_test:
+    template_test_mode:
+        False 
+    template_test_input_file_path:
+        ./template/initialize_reg_info.sv
+    template_test_output_file_name:
+        initialize_test_reg_info.sv

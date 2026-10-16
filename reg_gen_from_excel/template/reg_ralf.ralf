@@ -1,0 +1,32 @@
+{%- macro get_ralf_access(access) -%}
+    {%- set normalized_access = access | upper if access else '' -%}
+    {%- set access_map = {
+        "RO": "ro",
+        "RW": "rw",
+        "RC_R": "rc",
+        "RC_W1": "w1c",
+        "RC_W0": "w0c",
+        "RS": "rs",
+        "WO": "wo"
+    } -%}
+    {{ access_map.get(normalized_access, 'unknown') }}
+{%- endmacro -%}
+
+
+
+block {{module_name|lower|trim}}_regmodel {
+    bytes {{reg_gap|int}};
+    {{'\n'}}
+    {%- for register in registers|sort(attribute='address_offset_value_int',reverse=false) -%}
+{{'\t'}}register {{register.reg_name|lower|trim}} @0x{{"{:08X}".format(register.get_register_address_offset_value_int())}} {{'{'}} {{'\n'}}
+        {%- for field in register.fields|sort(attribute='start_bit',reverse=true) -%}
+{%- if (field.field_name|lower) != "reserved" -%}
+{{'\t\t'}}field {{field.field_name|lower|trim}} @'d{{field.start_bit|int}} {
+{{'\t\t\t'}}bits {{field.get_field_size()|int}};
+ {{'\t\t\t'}}access {{get_ralf_access(field.field_attribute)}};
+ {{'\t\t\t'}}reset 'h{{"{:0X}".format(field.get_field_reset_value_int())}};
+{{'\t\t'}}}{{'\n'}}{%- endif -%}
+        {%- endfor -%}
+{{'\t'}}}{{'\n'}}
+    {%- endfor %}
+}

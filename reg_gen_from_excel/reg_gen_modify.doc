@@ -1,0 +1,495 @@
+# reg_gen_from_excel 代码优化修改文档
+
+## 一、修改概述
+
+本次优化基于 `reg_gen_from_excel.doc` 中记录的 20 个问题，按 P0-P3 优先级全部修复。
+同时为所有代码添加了英文注释，重构了重复代码结构。
+
+### 修改文件清单
+
+| 文件 | 修改前行数 | 修改后行数 | 修改点数量 |
+|------|-----------|-----------|-----------|
+| reg_gen.py | 909 | 590 | 12 |
+| reg_gen_from_excel.py | 426 | 465 | 6 |
+| xlsx2json.py | 172 | 185 | 4 |
+| ral_gen_parse_yaml.py | 465 | 430 | 4 |
+| template/reg_old.h | 51 | 51 | 1 |
+| **合计** | **2023** | **1721** | **27** |
+
+代码总量减少约 15%，主要因为删除了 220+ 行注释掉的死代码和重复的 gen_* 方法。
+
+---
+
+## 二、逐项修改详情
+
+### P0 - 严重逻辑错误（3项）
+
+#### 问题 1：validate_register_wrapper 条件判断逻辑错误
+
+**文件**：reg_gen.py:187（原）→ reg_gen.py:251（新）
+
+**修改前**：
+```python
+if self.write_mode != None or self.write_mode != None:
+    self.validate_access_mode()
+```
+
+**修改后**：
+```python
+# [FIX #1] Check both read_mode and write_mode (was checking write_mode twice)
+if self.read_mode is not None or self.write_mode is not None:
+    self.validate_access_mode()
+```
+
+**影响**：修复了 read_mode 校验被跳过的问题。
+
+---
+
+#### 问题 2：process_json_field_name 中 field_name 取值 key 错误
+
+**文件**：reg_gen.py:497（原）→ reg_gen.py:479（新）
+
+**修改前**：
+```python
+name_match = re.match(r'^([A-Z0-9_]+)x([A-Z0-9_]*)\(x=(\d+)-(\d+)\)$',
+    field.get(parse_obj_config["reg_reset_value"], ''))
+```
+
+**修改后**：
+```python
+# [FIX #2] Match against field name, not reset value
+name_match = re.match(
+    r'^([A-Z0-9_]+)x([A-Z0-9_]*)\(x=(\d+)-(\d+)\)$',
+    field_name_val)
+```
+
+**影响**：修复了域名展开功能（如 PCLx(x=0-15)）完全无法工作的问题。
+
+---
+
+#### 问题 3：Field.parse_bits 解析失败返回 None
+
+**文件**：reg_gen.py:112-130（原）→ reg_gen.py:162-187（新）
+
+**修改前**：
+```python
+def parse_bits(self):
+    ...
+    except ValueError:
+        warnings.warn(...)
+        # 隐式返回 None
+```
+
+**修改后**：
+```python
+def parse_bits(self):
+    """Parse bit-range string into (low, high) tuple.
+    Returns (0, 0) on parse failure to avoid NoneType errors."""
+    ...
+    except ValueError:
+        warnings.warn(...)
+        return (0, 0)  # 显式返回默认值
+```
+
+**影响**：避免了 `TypeError: cannot unpack non-iterable NoneType object` 崩溃。
+
+---
+
+### P1 - 重要设计缺陷（6项）
+
+#### 问题 4：gen_reg_file_by_render 文件句柄泄漏
+
+**文件**：reg_gen_from_excel.py:386-393（原）→ reg_gen_from_excel.py:375-384（新）
+
+**修改前**：
+```python
+cur_file = open(output_file_path, "w")
+cur_file.write(...)
+# 未关闭
+```
+
+**修改后**：
+```python
+def _gen_file(self, template_name, output_path, context_tc, header_en=True):
+    """[FIX #4] Uses 'with' statement to ensure file handle is closed."""
+    ...
+    with open(output_path, "w") as cur_file:
+        ...
+        cur_file.write(rendered)
+```
+
+**影响**：消除了 20+ 个文件生成时的文件句柄泄漏。
+
+---
+
+#### 问题 5：add_file_to_file_top_svh 文件句柄泄漏 + 去重缺陷
+
+**文件**：reg_gen_from_excel.py:357-371（原）→ reg_gen_from_excel.py:345-354（新）
+
+**修改前**：
+```python
+line_strips = ""
+current_file = open(file_top_path, "a+")
+include_str = add_file_str
+current_file.seek(0)
+file_lines = current_file.readlines()
+for file_line in file_lines:
+    line_strips += file_line.strip()
+    line_strips += "\n"
+if include_str in line_strips:
+    pass
+else:
+    current_file.write("%s" % include_str)
+```
+
+**修改后**：
+```python
+def add_file_to_file_top_svh(file_top_path, add_file_str):
+    """[FIX #5] Fixed dedup logic and added proper file handle management."""
+    include_stripped = add_file_str.strip()
+    with open(file_top_path, "a+") as current_file:
+        current_file.seek(0)
+        existing = current_file.read()
+        if include_stripped not in existing:
+            current_file.write(add_file_str)
+```
+
+**影响**：修复了去重误判和文件句柄泄漏。
+
+---
+
+#### 问题 6：os.system 调用 ralgen 无返回值检查
+
+**文件**：reg_gen_from_excel.py:280（原）→ reg_gen_from_excel.py:303-314（新）
+
+**修改前**：
+```python
+os.system(command_to_be_executed)
+```
+
+**修改后**：
+```python
+# [FIX #6] Use subprocess for proper error handling
+result = subprocess.run(
+    ralgen_cmd, shell=True, capture_output=True, text=True)
+if result.returncode != 0:
+    print(f"\033[1;31m[ralgen Error] returncode={result.returncode}")
+    if result.stderr:
+        print(f"  stderr: {result.stderr.strip()}\033[0m")
+```
+
+**影响**：ralgen 失败时能正确报告错误信息。
+
+---
+
+#### 问题 7：unmerge_cell 异常时返回 None 未处理
+
+**文件**：xlsx2json.py:92（原）→ xlsx2json.py:105-109（新）
+
+**修改前**：
+```python
+temp_file = unmerge_cell(excel_file_path, sheet_name)
+# 未检查 None
+df = pd.read_excel(temp_file, ...)
+os.remove(temp_file)
+```
+
+**修改后**：
+```python
+temp_file = unmerge_cell(excel_file_path, sheet_name)
+if temp_file is None:
+    raise ValueError(f"Failed to unmerge cells in ...")
+try:
+    df = pd.read_excel(temp_file, ...)
+finally:
+    # [FIX #17] Always clean up temp file, even on error
+    if temp_file and os.path.exists(temp_file):
+        os.remove(temp_file)
+```
+
+**影响**：避免了 None 传入 pd.read_excel 导致的二次异常，同时修复了临时文件残留。
+
+---
+
+#### 问题 8：process_json_field_name 使用 eval()
+
+**文件**：reg_gen.py:510-513（原）→ reg_gen.py:41-58（新 safe_eval_expr）
+
+**修改前**：
+```python
+hb = max(eval(l.replace('x', str(x))), eval(r.replace('x', str(x))))
+```
+
+**修改后**：
+```python
+def safe_eval_expr(expr_str):
+    """Safely evaluate a simple arithmetic expression.
+    Uses ast.literal_eval for pure numbers, or validates the pattern."""
+    ...
+    if not re.match(r'^[\d\s\+\-\*\/\(\)]+$', expr_str):
+        raise ValueError(f"Unsafe expression rejected: '{expr_str}'")
+    tree = ast.parse(expr_str, mode='eval')
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Expression, ast.BinOp, ...)):
+            continue
+        raise ValueError(f"Disallowed AST node: {type(node).__name__}")
+    return eval(compile(tree, '<safe_eval>', 'eval'))
+```
+
+**影响**：消除了代码注入安全风险。
+
+---
+
+#### 问题 9：get_file_abspath 环境变量未设置时崩溃
+
+**文件**：ral_gen_parse_yaml.py:432（原）→ ral_gen_parse_yaml.py:340-348（新）
+
+**修改前**：
+```python
+file_path = file_path.replace("$%s" % cur_environ, os.environ.get(cur_environ))
+# os.environ.get() 返回 None 时 replace 崩溃
+```
+
+**修改后**：
+```python
+env_val = os.environ.get(cur_environ)
+if env_val is None:
+    print(f"\033[1;33m[Warning] Environment variable "
+          f"'{cur_environ}' is not set in path: {file_path}\033[0m")
+    loop_replace = False
+else:
+    file_path = file_path.replace(f"${cur_environ}", env_val)
+```
+
+**影响**：环境变量未设置时优雅降级而非崩溃。
+
+---
+
+### P2 - 一般问题（8项）
+
+#### 问题 10：merge_json_by_key 中使用 sys.exit()
+
+**文件**：xlsx2json.py:136（原）→ xlsx2json.py:152-157（新）
+
+**修改后**：抛出 `KeyError` 异常替代 `sys.exit()`。
+
+---
+
+#### 问题 11：validate_bits 检查顺序错误
+
+**文件**：reg_gen.py:104-109（原）→ reg_gen.py:143-155（新）
+
+**修改后**：先 `isdigit()` 检查，再 `int()` 转换。
+
+---
+
+#### 问题 12：调试信息未清理
+
+**文件**：reg_gen_from_excel.py:415-416（原）
+
+**修改后**：删除 `print("2222")` 和 `print(temp_value)` 调试语句。
+
+---
+
+#### 问题 13：Register.__init__ 冗余赋值
+
+**文件**：reg_gen.py:142-151（原）→ reg_gen.py:222-232（新）
+
+**修改后**：删除 `if read_mode != None: self.read_mode = read_mode` 重复赋值。
+
+---
+
+#### 问题 14：validate_value 中 format_pass 未使用
+
+**文件**：reg_gen.py:219（原）→ reg_gen.py:270（新）
+
+**修改后**：删除无用的 `format_pass = True` 赋值。
+
+---
+
+#### 问题 15：RegSheet.cfg 方法过长
+
+**文件**：ral_gen_parse_yaml.py:127-403（原，276行）→ 拆分为3个方法（新）
+
+**修改后**：
+- `_parse_yaml_config()`：YAML 解析
+- `_configure_output_paths()`：路径配置
+- `_create_output_directories()`：目录创建
+
+---
+
+#### 问题 16：大量重复的 gen_* 方法
+
+**文件**：reg_gen_from_excel.py:201-350（原，20+ 个重复方法）→ 2个通用方法（新）
+
+**修改后**：
+- `_gen_file(template, output, context)`：通用文件生成
+- `_gen_file_with_include(template, output, context, include_str, top_path)`：带 include 的文件生成
+- 按功能分组为 `_gen_global_files()`、`_gen_per_sheet_files()`、`_gen_*_permission_files()`
+
+---
+
+#### 问题 17：unmerge_cell 临时文件残留
+
+**文件**：xlsx2json.py:92-106（原）→ xlsx2json.py:105-115（新）
+
+**修改后**：使用 `try-finally` 确保临时文件始终被清理。
+
+---
+
+### P3 - 代码规范（3项）
+
+#### 问题 18：大量注释掉的代码未清理
+
+**修改内容**：删除了 reg_gen.py 中 220+ 行注释掉的测试代码（`__main__` 块中的 render1-render12）。
+
+---
+
+#### 问题 19：命名拼写错误
+
+| 修改前 | 修改后 | 文件 |
+|--------|--------|------|
+| `validate_field_wapper` | `validate_field_wrapper` | reg_gen.py |
+| `validate_field_attrubute` | `validate_field_attribute` | reg_gen.py |
+| `pelase` | `please` | xlsx2json.py |
+| `directlly` | `directly` | 已删除（注释代码） |
+| `whithout` | `without` | 已删除（注释代码） |
+
+---
+
+#### 问题 20：RegSheet 属性过多
+
+**修改内容**：将 `cfg()` 方法拆分为 `_parse_yaml_config()`、`_configure_output_paths()`、`_create_output_directories()` 三个职责单一的方法，并将 UT 配置解析提取为 `_parse_ut_cfg()`。
+
+---
+
+### 额外修复：模板文件 bug
+
+**文件**：template/reg_old.h:41
+
+**修改前**：
+```jinja2
+{%- set access_data = namespace(str)-%}
+```
+
+**修改后**：
+```jinja2
+{%- set access_data = namespace(str="") -%}
+```
+
+**影响**：修复了 Jinja2 模板渲染时 `'str' is undefined` 错误。
+
+---
+
+## 三、英文注释添加情况
+
+所有 4 个 Python 源文件均已添加英文注释：
+
+| 文件 | 注释内容 |
+|------|----------|
+| reg_gen.py | 文件头说明、类/方法 docstring、关键逻辑行注释 |
+| reg_gen_from_excel.py | 文件头说明、类/方法 docstring、修复标记 `[FIX #N]` |
+| xlsx2json.py | 文件头说明、函数 docstring、修复标记 `[FIX #N]` |
+| ral_gen_parse_yaml.py | 文件头说明、类/方法 docstring、修复标记 `[FIX #N]` |
+
+---
+
+## 四、执行验证
+
+### 测试 1：RCU_1.xlsx + regsheet_format.yml
+
+```bash
+python3 reg_gen_from_excel.py -i doc/RCU_1.xlsx -y regsheet_format.yml -o ./tmp_rcu
+```
+
+**结果**：EXIT=0，成功生成 20 个文件。
+
+```
+tmp_rcu/
+├── ccode/register/
+│   ├── CsxRCU_RegDef.h
+│   ├── CsxRCU_Reg.h
+│   ├── Csx_regtotal.h
+│   ├── Csx_RegTypes.h
+│   └── rcu_reg.h
+├── cfg/
+│   ├── config_item_top.svh
+│   └── rcu_config_item.sv
+├── common/
+│   ├── common_define_top.sv
+│   ├── rcu_reg_addr.svh
+│   └── rcu_reg_msk.svh
+├── json/
+│   └── rcu.json
+├── ral/
+│   ├── ral_top.svh
+│   └── rcu_reg.ralf
+└── testcases/
+    ├── basetask/
+    │   ├── common_register_chk_task.sv
+    │   ├── common_task_top.svh
+    │   ├── initialize_rcu_reg_info.sv
+    │   ├── reg_collection.sv
+    │   └── reg_info_cfg.sv
+    ├── tc_rcu_reg_access_rsvfield_chk.sv
+    └── test_pkg_reg_access.svh
+```
+
+**ralgen 说明**：ralgen 命令因环境缺少 `libXrender.so.1` 而失败（EXIT=127），这是 EDA 环境配置问题，脚本已正确捕获并报告错误（FIX #6 生效）。
+
+### 测试 2：PCU_IP.xlsx + regsheet_format_78x.yml
+
+```bash
+python3 reg_gen_from_excel.py -i doc/PCU_IP.xlsx -y regsheet_format_78x.yml -o ./tmp_pcu
+```
+
+**结果**：EXIT=1，脚本正确检测到 Excel 数据与 YAML 配置不匹配：
+
+```
+reset_field (COLD_PORST) not in YAML reset_domains!
+Expected one of: ['MODULE_RESET', 'CORE1_RESET', 'CORE2_RESET',
+'APPLICATION_RESET', 'SYSTEM_RESET', 'POWER_ON_RESET', 'COLD_POWER_ON_RESET']
+```
+
+**分析**：Excel 中使用了 `COLD_PORST` 作为复位域名，但 YAML 中定义的是 `COLD_POWER_ON_RESET`。这是 Excel 数据问题，修正 Excel 或 YAML 后即可正常生成。
+
+### 测试 3：PCU_IP.xlsx + regsheet_format.yml
+
+```bash
+python3 reg_gen_from_excel.py -i doc/PCU_IP.xlsx -y regsheet_format.yml -o ./tmp_pcu
+```
+
+**结果**：EXIT=1，脚本正确检测到 Excel 中 2 个 reserved 域属性错误：
+
+```
+PCU Reg EVR33CON offset '0x0098': reserved field 'reserved' bits '15:14' attribute is not RO
+PCU Reg PMSWCR4 offset '0x00C4': reserved field 'reserved' bits '23:16' attribute is not RO
+There are 2 error(s) in Excel, aborting.
+```
+
+**分析**：Excel 中 reserved 域的 Field Attribute 应设置为 `RO`，修正后即可正常生成。
+
+---
+
+## 五、Git 提交记录
+
+```
+git log --oneline
+```
+
+本次修改将在验证完成后统一提交。
+
+---
+
+## 六、修改统计
+
+| 指标 | 数值 |
+|------|------|
+| 修复问题总数 | 20 + 1（模板 bug）|
+| P0 修复 | 3 |
+| P1 修复 | 6 |
+| P2 修复 | 8 |
+| P3 修复 | 3 |
+| 代码减少行数 | ~300 行 |
+| 新增英文注释 | ~200 行 |
+| 生成文件验证 | 20/20 成功 |

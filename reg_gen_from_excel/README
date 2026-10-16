@@ -1,0 +1,41 @@
+**step 1 setenv reg_gen_from_excel.py path  **
+
+    1)g ~/.cshrc
+
+    2)add content str to ~/.cshrc as followes:
+
+        alias reg_gen_from_excel '/project/dig_veri_ip/cs-digital-ip/common_script/script_for_verify/scripts/ral_gen/reg_gen_from_excel/reg_gen_from_excel.py'
+
+** step 2  write regsheet_format.yml or regsheet_format_78x.yml**
+
+    Normal mode as follow:
+    1) if there are no description related to permission and reset fields in the register excel, copy the regsheet_format.yml to the local directory and modify it
+    2) permission access and reset fields descriotion in the register excel, copy the regsheet_format_78x.yml to the local directory and modify it
+
+    Templete test mode as followe:
+
+     modify template_test_mode to True
+     add template_test_input_file_path 
+     add template_test_output_file_name
+
+     example------ add in regsheet_format ---
+        template_test:
+            template_test_mode:
+                True 
+            template_test_input_file_path:
+                ./template/initialize_reg_info.sv
+            template_test_output_file_name:
+                initialize_test_reg_info.sv
+
+** step 3 use gen_reg_chk_file_from_excel gen the reg file to outdir path **
+
+    Normal and Test mode cmd all as follow:
+
+    reg_gen_from_excel -i ./doc/RCU_1.xlsx -y regsheet_format_78x.yml -o test/
+
+or
+
+    reg_gen_from_excel -i doc/Airbag_register_map.xlsx -y regsheet_format.yml -o test1/
+
+** step 4 copy the generate file to your $WORK_DIR path **
+
