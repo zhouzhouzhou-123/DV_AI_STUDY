@@ -1,0 +1,23 @@
+{{ file_header }}
+
+`ifndef {{ name_upper }}_SCB__SV
+`define {{ name_upper }}_SCB__SV
+
+class {{ name }}_scb extends uvm_component;
+
+    `uvm_component_utils_begin({{ name }}_scb)
+    `uvm_component_utils_end
+
+    function new (string name = "{{ name }}_scb", uvm_component parent);
+        super.new(name, parent);
+    endfunction : new
+
+    extern virtual task main_phase(uvm_phase phase);
+endclass : {{ name }}_scb
+
+task {{ name }}_scb::main_phase(uvm_phase phase);
+    `uvm_info(get_type_name(), "call main_phase", UVM_LOW)
+
+endtask : main_phase
+
+`endif // {{ name_upper }}_SCB__SV

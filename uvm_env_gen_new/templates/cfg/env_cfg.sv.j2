@@ -1,0 +1,89 @@
+{{ file_header }}
+
+`ifndef ENV_CFG__SV
+`define ENV_CFG__SV
+
+class env_cfg extends uvm_sequence_item;
+
+{% for m in members %}
+    {{ m.type_aligned }}{{ m.name }};
+{% endfor %}
+
+    `uvm_object_utils_begin(env_cfg)
+{% for a in mst_agents_non_vip %}
+{% if a.count == 1 %}
+        `uvm_field_object(mo_{{ a.name }}_master_agent_cfg, UVM_ALL_ON)
+{% else %}
+        `uvm_field_sarray_object(moa_{{ a.name }}_master_agent_cfg, UVM_ALL_ON)
+{% endif %}
+{% endfor %}
+{% for a in slv_agents_non_vip %}
+{% if a.count == 1 %}
+        `uvm_field_object(mo_{{ a.name }}_slaver_agent_cfg, UVM_ALL_ON)
+{% else %}
+        `uvm_field_sarray_object(moa_{{ a.name }}_slaver_agent_cfg, UVM_ALL_ON)
+{% endif %}
+{% endfor %}
+    `uvm_object_utils_end
+
+    function new(string name = "env_cfg");
+        super.new(name);
+    endfunction : new
+
+    extern function void create_env_cfg();
+    extern function void modify_env_cfg();
+
+endclass : env_cfg
+
+function void env_cfg::create_env_cfg();
+    // instance master agent cfg
+{% for a in mst_agents_non_vip %}
+{% if a.count == 1 %}
+    this.mo_{{ a.name }}_master_agent_cfg = {{ a.name }}_agent_cfg::type_id::create("mo_{{ a.name }}_master_agent_cfg");
+{% else %}
+    foreach(this.moa_{{ a.name }}_master_agent_cfg[index])
+    begin
+        this.moa_{{ a.name }}_master_agent_cfg[index] = {{ a.name }}_agent_cfg::type_id::create($sformatf("moa_{{ a.name }}_master_agent_cfg[%0d]", index));
+    end
+{% endif %}
+{% endfor %}
+
+    // instance slaver agent cfg
+{% for a in slv_agents_non_vip %}
+{% if a.count == 1 %}
+    this.mo_{{ a.name }}_slaver_agent_cfg = {{ a.name }}_agent_cfg::type_id::create("mo_{{ a.name }}_slaver_agent_cfg");
+{% else %}
+    foreach(this.moa_{{ a.name }}_slaver_agent_cfg[index])
+    begin
+        this.moa_{{ a.name }}_slaver_agent_cfg[index] = {{ a.name }}_agent_cfg::type_id::create($sformatf("moa_{{ a.name }}_slaver_agent_cfg[%0d]", index));
+    end
+{% endif %}
+{% endfor %}
+endfunction : create_env_cfg
+
+function void env_cfg::modify_env_cfg();
+{% for a in mst_agents_non_vip %}
+    // mo_{{ a.name }}_master_agent_cfg
+{% if a.count == 1 %}
+    this.mo_{{ a.name }}_master_agent_cfg.is_active = UVM_ACTIVE;
+{% else %}
+{% for i in range(a.count) %}
+    this.moa_{{ a.name }}_master_agent_cfg[{{ i }}].is_active = UVM_ACTIVE;
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% for a in slv_agents_non_vip %}
+    // mo_{{ a.name }}_slaver_agent_cfg
+{% if a.count == 1 %}
+    this.mo_{{ a.name }}_slaver_agent_cfg.is_active = UVM_PASSIVE;
+{% else %}
+{% for i in range(a.count) %}
+    this.moa_{{ a.name }}_slaver_agent_cfg[{{ i }}].is_active = UVM_PASSIVE;
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+endfunction : modify_env_cfg
+
+`endif // ENV_CFG__SV

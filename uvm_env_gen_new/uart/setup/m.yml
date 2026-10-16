@@ -1,0 +1,87 @@
+
+# -------- set_env select for special define ------------- #
+is_mixed:
+    False
+
+set_env:
+    default:
+        ../setup/set_env.csh
+    POST_SIM:
+        ../setup/set_env_post.csh
+    FPGA_SIM:
+        ../setup/set_env_fpga.csh
+
+# -------- rtl_filelist select for special define ------------- #
+rtl_filelist:
+    default:
+        ../filelist/presim_rtl_filelist.f
+    POST_SIM:
+        ../filelist/postsim_rtl_filelist.f
+    FPGA_SIM:
+        ../filelist/fpga_rtl_filelist.f
+pre_sim_duv_vhdl_flist:
+    ../filelist/presim_rtl_vhdl_filelist.f
+
+# -------- vendor IP library configuration ------------- #
+# Set to empty/null to skip VHDL compilation and use pre-compiled libraries only
+vendor_ip:
+    # VHDL source files to compile (set to empty to skip compilation)
+    vhdl_src_filelist:
+    
+    # Pre-compiled vendor IP libraries (used directly without compilation)
+    # Format: lib_name: path_to_precompiled_lib
+    precompiled_libs:
+        linflex3_lib: ../vip/vhdl_ip_precompiled/linflex3_lib
+        xcans_lib: ../vip/vhdl_ip_precompiled/xcans_lib
+        ae_notech_lib: ../vip/vhdl_ip_precompiled/ae_notech_lib
+
+regression_cmd:
+    vmanager -server d03:8080 &
+lsf_args:
+
+mixsim_lsf_args:
+
+
+vhdlan_default_comp_args:
+    -kdb -full64 -no_opt
+vlogan_default_comp_args:
+    +define+SYNOPSYS_SV
+    +define+SVT_UVM_TECHNOLOGY
+    +define+SYNOPSYS_SV
+    +define+SVT_I2C_INCLUDE_USER_DEFINES
+    +define+UVM_DISABLE_AUTO_ITEM_RECORDING
+    +define+UVM_PACKER_MAX_BYTES=1500000
+    -sverilog +incdir+${UVM_HOME}/src ${UVM_HOME}/src/uvm_pkg.sv
+    -timescale=1ns/1ps
+    -lca -kdb -full64 +v2k +libext+.sv+.v
+    +lint=TFIPC-L +lint=PCWM
+    -debug_acc+all -debug_region=cell+encrypt
+    -debug_access+r+w -debug_region+cell
+vlogan_only_pre_comp_args:
+
+vlogan_only_post_comp_args:
+
+vcs_default_comp_args:
+    ${UVM_HOME}/src/dpi/uvm_dpi.cc
+    -CFLAGS -DVCS
+    -timescale=1ns/1ps
+    -debug_acc+all -debug_region=cell+encrypt -kdb -lca -full64 +vpi
+    -debug_access+r+w -debug_region+cell
+vcs_only_pre_comp_args:
+    -deraceclockdata +notimingcheck +nospecify
+vcs_only_post_comp_args:
+    +neg_tchk +overlap -negdelay -sdfretain +sdfverbose
+    -hsopt=gates
+    -diag=sdf:verbose
+vcs_pa_comp_args:
+    -power=supply_aware_ie
+vcs_default_sim_args:
+    -licqueue +vcs+flush+all
+    +UVM_MAX_QUIT_COUNT=30,YES
+    +fsdb+delta
+    +fsdb+sva_success
+    +fsdb+force
+upf_file_path:
+    $CS32GX503_DIG_DIR/src/upf_1.0/cs32gx503_top.upf
+upf_cfg_path:
+    ../scripts/power_config.tcl

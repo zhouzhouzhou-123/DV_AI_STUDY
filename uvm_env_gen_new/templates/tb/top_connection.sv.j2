@@ -1,0 +1,43 @@
+{{ file_header }}
+
+`ifndef TOP_CONNECTION__SV
+`define TOP_CONNECTION__SV
+
+parameter   PA_NUM  = 16;
+parameter   PB_NUM  = 16;
+parameter   PC_NUM  = 16;
+parameter   PD_NUM  = 16;
+
+real    VDD, VPP, GND;
+reg     TESTEN;
+wire    [PA_NUM - 1 : 0]    PA;
+wire    [PB_NUM - 1 : 0]    PB;
+wire    [PC_NUM - 1 : 0]    PC;
+wire    [PD_NUM - 1 : 0]    PD;
+
+// CHIP_TOP u_chip_top(
+//         .TESTEN     (TESTEN     ),
+//         .VDD        (VDD        ),
+//         .VPP        (VPP        ),
+//         .DGND       (GND        ),
+//         .AGND       (GND        ),
+//         .GND        (GND        ),
+//         .PA0        (PA[0]      ),
+//         .PA1        (PA[1]      ),
+//         .PB0        (PB[0]      ),
+//         .PC0        (PC[0]      ),
+//         .PD0        (PD[0]      )
+//     );
+
+// include sub-connection
+// `include "../tb/sub_connection/power_control.sv"
+// `include "../tb/sub_connection/gpio_connection.sv"
+
+
+// --------------------- TESTEN (default : 0) ----------------- //
+initial
+begin
+    TESTEN  = 0;
+end
+
+`endif // TOP_CONNECTION__SV

@@ -1,0 +1,60 @@
+{{ file_header }}
+
+`ifndef BASE_VIR_SEQ__SV
+`define BASE_VIR_SEQ__SV
+
+class base_vir_seq extends uvm_sequence;
+
+    `uvm_object_utils_begin(base_vir_seq)
+    `uvm_object_utils_end
+
+    extern          function                new(string name = "base_vir_seq");
+    extern          function    uvm_phase   get_starting_phase();
+    extern  virtual task                    pre_body();
+    extern  virtual task                    post_body();
+
+endclass : base_vir_seq
+
+function base_vir_seq::new(string name = "base_vir_seq");
+    super.new(name);
+endfunction : new
+
+function uvm_phase base_vir_seq::get_starting_phase();
+    `ifdef SVT_UVM_12_OR_HIGHER
+        return this.get_starting_phase();
+    `else
+        return this.starting_phase;
+    `endif
+endfunction : get_starting_phase
+
+task base_vir_seq::pre_body();
+    uvm_phase phase;
+    time drain_time = 20us;
+
+    super.pre_body();
+
+    uvm_test_done.raise_objection(this);
+
+    phase = this.get_starting_phase();
+
+    if(phase != null)
+    begin
+        phase.raise_objection(this);
+        `uvm_info("pre_body","raise objection...",UVM_LOW)
+        phase.phase_done.set_drain_time(this,drain_time);
+    end
+endtask : pre_body
+
+task base_vir_seq::post_body();
+    uvm_phase phase;
+    phase = this.get_starting_phase();
+
+    if(phase != null)
+    begin
+        phase.drop_objection(this);
+        `uvm_info("post_body","drop_objection...",UVM_LOW)
+    end
+    uvm_test_done.drop_objection(this);
+endtask : post_body
+
+`endif // BASE_VIR_SEQ__SV

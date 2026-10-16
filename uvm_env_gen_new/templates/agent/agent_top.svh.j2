@@ -1,0 +1,4 @@
+{{ file_header }}
+{% for a in all_agents_non_vip %}
+`include "../env/agent/{{ a.name }}_agent/{{ a.name }}_agent_top.svh"
+{% endfor %}

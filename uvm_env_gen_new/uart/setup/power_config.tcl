@@ -1,0 +1,1 @@
+set_design_attributes  -attribute SNPS_voltage_based_supply_on TRUE

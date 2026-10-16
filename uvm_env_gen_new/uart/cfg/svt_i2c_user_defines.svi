@@ -1,0 +1,121 @@
+//------------------------------------------------------------------------
+// FILE NAME      : svt_i2c_user_defines.svi
+// DEPARTMENT     : Digital Verification Department
+// AUTHOR         : liucf
+// AUTHOR'S EMAIL : liucf@chipsea.com
+// DATE           : 2024-05-21 14:52:31
+// ABSTACT        :
+//
+//-------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------
+// Timing Parameter For Standard Speed Mode (assuming clock period of 1ns)
+//--------------------------------------------------------------------------
+`define SVT_I2C_CLK_HIGH_SS                          4000
+`define SVT_I2C_CLK_LOW_SS                           4700
+`define SVT_I2C_MIN_SU_STA_SS                        4700
+`define SVT_I2C_MIN_SU_STO_SS                        4000
+`define SVT_I2C_MIN_SU_DAT_SS                        250
+`define SVT_I2C_MIN_HD_STA_SS                        4000
+`define SVT_I2C_MIN_HD_DAT_SS                        300
+`define SVT_I2C_MAX_HD_DAT_SS                        3450
+`define SVT_I2C_TBUF_TIME_SS                         4700
+`define SVT_I2C_MAX_CLK_HIGH_OFFSET_SS               1000
+`define SVT_I2C_MAX_CLK_LOW_OFFSET_SS                300
+`define SVT_I2C_MIN_CLK_HIGH_OFFSET_SS               0
+`define SVT_I2C_MIN_CLK_LOW_OFFSET_SS                0
+//--------------------------------------------------------------------------
+// Timing Parameter For Fast Speed Mode (assuming clock period of 1ns)
+//--------------------------------------------------------------------------
+`define SVT_I2C_CLK_HIGH_FS                          600
+`define SVT_I2C_CLK_LOW_FS                           1300
+`define SVT_I2C_MIN_SU_STA_FS                        600
+`define SVT_I2C_MIN_SU_STO_FS                        600
+`define SVT_I2C_MIN_SU_DAT_FS                        100
+`define SVT_I2C_MIN_HD_STA_FS                        600
+`define SVT_I2C_MIN_HD_DAT_FS                        300
+`define SVT_I2C_MAX_HD_DAT_FS                        900
+`define SVT_I2C_TBUF_TIME_FS                         1300
+`define SVT_I2C_MAX_CLK_HIGH_OFFSET_FS               300
+`define SVT_I2C_MAX_CLK_LOW_OFFSET_FS                300
+`define SVT_I2C_MIN_CLK_HIGH_OFFSET_FS               20
+`define SVT_I2C_MIN_CLK_LOW_OFFSET_FS                20
+//--------------------------------------------------------------------------
+// Timing Parameter For High Speed Mode (assuming clock period of 1ns) Cb = 100
+//--------------------------------------------------------------------------
+`define SVT_I2C_CLK_HIGH_HS                          60
+`define SVT_I2C_CLK_LOW_HS                           160
+`define SVT_I2C_MIN_SU_STA_HS                        160
+`define SVT_I2C_MIN_SU_STO_HS                        160
+`define SVT_I2C_MIN_SU_DAT_HS                        10
+`define SVT_I2C_MIN_HD_STA_HS                        160
+`define SVT_I2C_MIN_HD_DAT_HS                        40
+`define SVT_I2C_MAX_HD_DAT_HS                        70
+`define SVT_I2C_MAX_CLK_HIGH_OFFSET_HS               40
+`define SVT_I2C_MAX_CLK_LOW_OFFSET_HS                40
+`define SVT_I2C_MIN_CLK_HIGH_OFFSET_HS               10
+`define SVT_I2C_MIN_CLK_LOW_OFFSET_HS                10
+//--------------------------------------------------------------------------
+// Timing Parameter For Fast Mode plus speed (assuming clock period of 1ns)
+//--------------------------------------------------------------------------
+`define SVT_I2C_CLK_HIGH_FM_PLUS                     260
+`define SVT_I2C_CLK_LOW_FM_PLUS                      500
+`define SVT_I2C_MIN_SU_STA_FM_PLUS                   260
+`define SVT_I2C_MIN_SU_STO_FM_PLUS                   260
+`define SVT_I2C_MIN_SU_DAT_FM_PLUS                   50
+`define SVT_I2C_MIN_HD_STA_FM_PLUS                   260
+`define SVT_I2C_MIN_HD_DAT_FM_PLUS                   300
+`define SVT_I2C_MAX_HD_DAT_FM_PLUS                   900
+`define SVT_I2C_TBUF_TIME_FM_PLUS                    500
+`define SVT_I2C_MAX_CLK_HIGH_OFFSET_FM_PLUS          120
+`define SVT_I2C_MAX_CLK_LOW_OFFSET_FM_PLUS           120
+`define SVT_I2C_MIN_CLK_HIGH_OFFSET_FM_PLUS          0
+`define SVT_I2C_MIN_CLK_LOW_OFFSET_FM_PLUS           0
+//--------------------------------------------------------------------------
+// MAX Timing Parameter For Standard Speed Mode (assuming clock period of 1ns)
+//--------------------------------------------------------------------------
+`define SVT_I2C_MAX_CLK_HIGH_SS                      10000
+`define SVT_I2C_MAX_CLK_LOW_SS                       10000
+`define SVT_I2C_MAX_SU_STA_SS                        10000
+`define SVT_I2C_MAX_SU_STO_SS                        10000
+`define SVT_I2C_MAX_SU_DAT_SS                        1000
+`define SVT_I2C_MAX_HD_STA_SS                        6000
+`define SVT_I2C_MIN_HD_DAT_MAX_SS                    1000
+`define SVT_I2C_MAX_HD_DAT_MIN_SS                    2000
+`define SVT_I2C_MAX_TBUF_TIME_SS                     10000
+//-------------------------------------------------------------------------
+// MAX Timing Parameter For Fast Speed Mode (assuming clock period of 1ns)
+//-------------------------------------------------------------------------
+`define SVT_I2C_MAX_CLK_HIGH_FS                      10000
+`define SVT_I2C_MAX_CLK_LOW_FS                       10000
+`define SVT_I2C_MAX_SU_STA_FS                        1500
+`define SVT_I2C_MAX_SU_STO_FS                        1500
+`define SVT_I2C_MAX_SU_DAT_FS                        500
+`define SVT_I2C_MAX_HD_STA_FS                        1500
+`define SVT_I2C_MIN_HD_DAT_MAX_FS                    500
+`define SVT_I2C_MAX_HD_DAT_MIN_FS                    800
+`define SVT_I2C_MAX_TBUF_TIME_FS                     2500
+//-------------------------------------------------------------------------
+// MAX Timing Parameter For High Speed Mode (assuming clock period of 1ns) Cb = 100
+//-------------------------------------------------------------------------
+`define SVT_I2C_MAX_CLK_HIGH_HS                      1000
+`define SVT_I2C_MAX_CLK_LOW_HS                       1000
+`define SVT_I2C_MAX_SU_STA_HS                        1000
+`define SVT_I2C_MAX_SU_STO_HS                        1000
+`define SVT_I2C_MAX_SU_DAT_HS                        50
+`define SVT_I2C_MAX_HD_STA_HS                        400
+`define SVT_I2C_MIN_HD_DAT_MAX_HS                    50
+`define SVT_I2C_MAX_HD_DAT_MIN_HS                    60
+//--------------------------------------------------------------------------
+// MAX Timing Parameter For Fast Mode plus speed (assuming clock period of 1ns)
+//--------------------------------------------------------------------------
+`define SVT_I2C_MAX_CLK_HIGH_FM_PLUS                 1000
+`define SVT_I2C_MAX_CLK_LOW_FM_PLUS                  1000
+`define SVT_I2C_MAX_SU_STA_FM_PLUS                   1000
+`define SVT_I2C_MAX_SU_STO_FM_PLUS                   1000
+`define SVT_I2C_MAX_SU_DAT_FM_PLUS                   100
+`define SVT_I2C_MAX_HD_STA_FM_PLUS                   500
+`define SVT_I2C_MIN_HD_DAT_FM_MAX_PLUS               500
+`define SVT_I2C_MAX_HD_DAT_FM_MIN_PLUS               800
+`define SVT_I2C_MAX_TBUF_TIME_FM_PLUS                1000
+

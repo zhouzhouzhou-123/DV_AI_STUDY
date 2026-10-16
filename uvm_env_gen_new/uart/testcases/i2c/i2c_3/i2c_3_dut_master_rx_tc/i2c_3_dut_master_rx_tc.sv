@@ -1,0 +1,72 @@
+//------------------------------------------------------------------------
+// FILE NAME      : i2c_3_dut_master_rx_tc.sv
+// DEPARTMENT     : Digital Verification Department
+// AUTHOR         : liucf
+// AUTHOR'S EMAIL : liucf@chipsea.com
+// DATE           : 2024-05-21 15:00:54
+// ABSTACT        :
+//
+//-------------------------------------------------------------------------
+
+`ifndef I2C_3_DUT_MASTER_RX_TC__SV
+`define I2C_3_DUT_MASTER_RX_TC__SV
+
+class i2c_3_dut_master_rx_tc extends i2c_basetest;
+
+    `uvm_component_utils(i2c_3_dut_master_rx_tc)
+
+    extern  function    new             (string name = "i2c_3_dut_master_rx_tc", uvm_component parent);
+    extern  task        configure_phase (uvm_phase phase);
+
+    extern  task        modify_i2c_cfg  ();
+    extern  task        tc_proc         ();
+
+endclass : i2c_3_dut_master_rx_tc
+
+function i2c_3_dut_master_rx_tc::new(string name = "i2c_3_dut_master_rx_tc", uvm_component parent);
+     super.new(name, parent);
+endfunction
+
+task i2c_3_dut_master_rx_tc::configure_phase(uvm_phase phase);
+    phase.raise_objection(this);
+    this.load_hex_file("../ccode/hex/i2c_3_dut_master_rx_tc.hex");
+    phase.drop_objection(this);
+endtask
+
+task i2c_3_dut_master_rx_tc::tc_proc();
+    bit [7:0]   vip_tx_data[4] = {'h5a, 'h5b, 'h5c, 'h5d};
+
+    sv_wait_label(100);
+
+    this.modify_i2c_cfg();
+    this.vip_tx_as_slave(3, vip_tx_data);
+
+    // wait enter I2C RX interrupt
+    fork : wait_enter_interrupt
+        begin
+            sv_wait_label(666);
+            sv_wait_label(777);
+            `uvm_info("","enter interupt handler",UVM_LOW)
+        end
+        begin
+            #3ms;
+            `uvm_error("","enter interrupt handler timeout...")
+        end
+    join_any
+    disable wait_enter_interrupt;
+endtask : tc_proc
+
+task i2c_3_dut_master_rx_tc::modify_i2c_cfg();
+    this.mo_env.mo_env_cfg.mo_svt_i2c_system_env_cfg[3].slave_cfg[0].slave_address     = 10'h5a;
+    this.mo_env.mo_env_cfg.mo_svt_i2c_system_env_cfg[3].slave_cfg[0].enable_10bit_addr = 0;
+
+    randcase
+        1   :   this.mo_env.mo_env_cfg.mo_svt_i2c_system_env_cfg[3].set_bus_speed(`SVT_I2C_STANDARD_MODE);
+        1   :   this.mo_env.mo_env_cfg.mo_svt_i2c_system_env_cfg[3].set_bus_speed(`SVT_I2C_FAST_MODE);
+        1   :   this.mo_env.mo_env_cfg.mo_svt_i2c_system_env_cfg[3].set_bus_speed(`SVT_I2C_HIGHSPEED_MODE);
+        1   :   this.mo_env.mo_env_cfg.mo_svt_i2c_system_env_cfg[3].set_bus_speed(`SVT_I2C_FAST_MODE_PLUS);
+    endcase
+endtask : modify_i2c_cfg
+
+`endif // I2C_3_DUT_MASTER_RX_TC__SV
+

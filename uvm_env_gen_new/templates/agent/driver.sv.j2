@@ -1,0 +1,57 @@
+{{ file_header }}
+
+`ifndef {{ name_upper }}_DRIVER__SV
+`define {{ name_upper }}_DRIVER__SV
+
+class {{ name }}_driver extends uvm_driver #({{ name }}_item);
+
+    virtual {{ name }}_if mo_vif;
+
+    {{ name }}_agent_cfg mo_agent_cfg;
+
+    `uvm_component_param_utils_begin({{ name }}_driver)
+        `uvm_field_object(mo_agent_cfg, UVM_ALL_ON)
+    `uvm_component_utils_end
+
+    function new (string name = "{{ name }}_driver", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction : new
+
+    extern  virtual function void build_phase(uvm_phase phase);
+    extern  virtual task main_phase(uvm_phase phase);
+    extern  virtual task reset_vif();
+    extern  virtual task get_and_drive();
+    extern  virtual task send_item({{ name }}_item o_item);
+endclass : {{ name }}_driver
+
+function void {{ name }}_driver::build_phase(uvm_phase phase);
+    super.build_phase(phase);
+endfunction : build_phase
+
+task {{ name }}_driver::main_phase(uvm_phase phase);
+    this.reset_vif();
+    this.get_and_drive();
+endtask : main_phase
+
+task {{ name }}_driver::reset_vif();
+    // TODO
+    // this.mo_vif.drv_cb.dout <= 'h0;
+endtask : reset_vif
+
+task {{ name }}_driver::get_and_drive();
+    {{ name }}_item o_item;
+    forever
+    begin
+        // `uvm_info(get_type_name(), "before get_next_item", UVM_MEDIUM)
+        seq_item_port.get_next_item(o_item);
+        this.send_item(o_item);
+        seq_item_port.item_done();
+        // `uvm_info(get_type_name(), "after item_done", UVM_MEDIUM)
+    end
+endtask : get_and_drive
+
+task {{ name }}_driver::send_item({{ name }}_item o_item);
+    // TODO
+endtask : send_item
+
+`endif // {{ name_upper }}_DRIVER__SV

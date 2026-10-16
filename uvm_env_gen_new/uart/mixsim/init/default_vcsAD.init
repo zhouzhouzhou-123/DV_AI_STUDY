@@ -1,0 +1,11 @@
+
+//spice_top ;
+// by default, we use ../mixsim/init/default.sp && ../mixsim/cfg/default_cfg
+choose xa -n $SPICE_NAME -c $CFG_NAME -o $LOG_NAME;
+// use_spice -cell CS32FX032AA_TOP_schematic;
+// use_verilog -module cs32fx032_dig_all;
+bus_format <%d>;
+// PA
+// d2a hiv=3.3v lov=0v node=top.u_chip_top.pa0;
+// a2d hith=1.65v loth=1.65v node=top.u_chip_top.pa0;
+

@@ -1,0 +1,20 @@
+{{ file_header }}
+
+`ifndef {{ name_upper }}_AGENT_CFG__SV
+`define {{ name_upper }}_AGENT_CFG__SV
+
+class {{ name }}_agent_cfg extends uvm_sequence_item;
+
+    uvm_active_passive_enum is_active = UVM_ACTIVE;
+
+    `uvm_object_utils_begin({{ name }}_agent_cfg)
+        `uvm_field_enum(uvm_active_passive_enum, is_active, UVM_ALL_ON)
+    `uvm_object_utils_end
+
+    function new (string name = "{{ name }}_agent_cfg");
+        super.new(name);
+    endfunction : new
+
+endclass : {{ name }}_agent_cfg
+
+`endif // {{ name_upper }}_AGENT_CFG__SV

@@ -1,0 +1,49 @@
+# Simulation results - compiled objects
+sim/comp_result/
+sim/result/
+sim/csrc/
+sim/simv*
+sim/*.log
+sim/AN.DB/
+sim/vc_hdrs.h
+sim/ucli.key
+sim/novas.*
+sim/64/
+sim/*.vdb
+sim/*.vsofx
+sim/vmgr_db/
+sim/vhdl_objs_dir/
+sim/work.lib++/
+sim/map.rpt
+sim/sdfAnnotateInfo
+
+# DVE output
+DVEfiles/
+inter.vpd
+dve.*
+
+# VCS generated files
+csrc/
+ucli.key
+vc_hdrs.h
+
+# Verdi generated files
+novas.*
+verdiLog/
+verdi_config/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Misc artifacts
+incr_compile_cache.json

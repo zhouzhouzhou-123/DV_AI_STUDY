@@ -1,0 +1,43 @@
+project_name:
+    i3c
+link_path:
+    /home/zhouxk/work/cs32kx776/trunk/digital/Veri/ut_veri
+
+# cpu_type is only used in SOC veri
+cpu_type:
+    M0 # supported CPU : M0/M0P/M3/STAR
+
+mst_agent_list:
+    apb:
+        count: 1
+        is_vip: True
+    i3c:
+        count: 1
+        is_vip: True
+    gpio:
+        count: 1
+        is_vip: False
+
+slv_agent_list:
+    apb:
+        count: 1
+        is_vip: True
+    i3c:
+        count: 1
+        is_vip: True
+
+refm_list:
+    i3c:
+        count: 1
+
+scb_list:
+    i3c:
+        count: 1
+
+cov_list:
+    i3c_info:
+        count: 1
+
+sva_list:
+    i3c_clk:
+        count: 1

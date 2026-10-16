@@ -1,0 +1,15 @@
+
+group i2c_4_group {
+    timeout : 92000;
+    sv_seed : gen_random;
+
+    test i2c_4_dut_slave_rx_tc               { }
+    test i2c_4_dut_slave_tx_tc               { }
+    test i2c_4_dut_master_tx_tc              { }
+    test i2c_4_dut_master_rx_tc              { }
+
+// #ifndef POST_SIM_ON
+//     test usb_4_device_for_all_endpoint_tc    { }
+// #endif
+
+}

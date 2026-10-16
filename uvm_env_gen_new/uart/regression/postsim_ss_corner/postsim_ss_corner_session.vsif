@@ -1,0 +1,28 @@
+
+session postsim_session {
+    top_dir:${XXX_VERI_PATH}/regression/result;
+}
+group comp_group {
+    scan_script:"vm_scan.pl uvm.flt vcs.flt";
+    run_script:"${XXX_VERI_PATH}/scripts/vcs_vm.sh comp POST_SIM_ON+SS_CORNER";
+    count   : 1;
+
+    #define POST_SIM_ON
+
+    #include "${XXX_VERI_PATH}/testcases/wdt/wdt.vsif"
+
+}
+
+group run_group {
+    scan_script:"vm_scan.pl uvm.flt vcs.flt";
+    run_script:"${XXX_VERI_PATH}/scripts/vcs_vm.sh nocomp_run POST_SIM_ON+SS_CORNER";
+    depends_on : ../comp_group;
+    sv_seed : gen_random;
+    timeout : 9200;
+    count   : 10;
+
+    #define POST_SIM_ON
+
+    #include "${M1026_VERI_PATH}/testcases/wdt/wdt.vsif"
+
+}

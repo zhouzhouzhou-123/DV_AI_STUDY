@@ -1,0 +1,44 @@
+project_name:
+    spi
+
+link_path:
+    /home/zhouxk/work/cs32kx776/trunk/digital/Veri/ut_veri
+
+# cpu_type is only used in SOC veri
+cpu_type:
+    M0 # supported CPU : M0/M0P/M3/STAR
+
+mst_agent_list:
+    apb:
+        count: 1
+        is_vip: True
+    spi:
+        count: 2
+        is_vip: True
+    gpio:
+        count: 1
+        is_vip: False
+
+slv_agent_list:
+    apb:
+        count: 1
+        is_vip: True
+    spi:
+        count: 2
+        is_vip: True
+
+refm_list:
+    spi:
+        count: 2
+
+scb_list:
+    spi:
+        count: 2
+
+cov_list:
+    spi_info:
+        count: 2
+
+sva_list:
+    spi_clk:
+        count: 1

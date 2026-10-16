@@ -1,0 +1,7 @@
+
+set_sim_level 5
+set_waveform_option -format fsdb -file merge
+set_multi_core -core 8
+# probe_waveform_voltage top.u_chip_top* -level 3
+# probe_waveform_voltage top.u_chip_top.xi60.xi7* -level 5
+

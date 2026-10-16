@@ -1,0 +1,266 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import re
+import argparse
+import yaml
+import xlrd3 as xlrd
+
+from operator import attrgetter
+
+cur_scr_dir = os.path.dirname(os.path.abspath(__file__))
+pubfunc_dir = os.path.abspath(cur_scr_dir + "/../../public")
+sys.path.append(pubfunc_dir)
+
+vip_patch_dir = os.path.abspath(cur_scr_dir + "/../../standard_lib/vip_patch")
+sys.path.append(vip_patch_dir)
+
+gen_linker_patch_dir = os.path.abspath(cur_scr_dir + "/../gen_soft_linker")
+sys.path.append(gen_linker_patch_dir)
+
+from pubfunc            import PubFunc
+from envdirs            import EnvDirs
+from cfgfiles           import CfgFiles
+from commonfiles        import CommonFiles
+from covfiles           import CovFiles
+from envfiles           import EnvFiles
+from envagentfiles      import EnvAgentFiles
+from envrefmfiles       import EnvRefmFiles
+from envscbfiles        import EnvScbFiles
+from envcallbackfiles   import EnvCallbackFiles
+from envtransfiles      import EnvTransFiles
+from ralfiles           import RalFiles
+from regressionfiles    import RegressionFiles
+from scriptfiles        import ScriptFiles
+from seqfiles           import SeqFiles
+from setupfiles         import SetupFiles
+from svafiles           import SvaFiles
+from tbfiles            import TbFiles
+from testcasefiles      import TestcaseFiles
+from vipfiles           import VipFiles
+from mixsimfiles        import CoSimFiles
+from filelist_files     import Filelist_Files
+from vip_patch          import Vip_Patch
+from ccodefiles         import CcodeFiles
+from gen_link           import link_directories
+
+
+class EnvComponent:
+    def __init__(self):
+        self.name = ""
+        self.count = -1
+        self.is_vip = False
+
+    def __str__(self):
+        str_info = ""
+        str_info += "------ EnvComponent Start ------\n"
+        str_info += "        name(%s)\n" % self.name
+        str_info += "        count(%d)\n" % self.count
+        str_info += "        is_vip(%s)\n" % self.is_vip
+        str_info += "------ EnvComponent End ------\n"
+        return str_info
+
+
+class EnvGen:
+    def __init__(self, info_file_path):
+        self.info_file_path = os.path.abspath(info_file_path)
+        self.project_name = ""
+        self.project_path = ""
+        self.link_path    = ""
+        self.mst_agent_list = []
+        self.slv_agent_list = []
+        self.refm_list = []
+        self.scb_list = []
+        self.cov_list = []
+        self.sva_list = []
+        self.cpu_type = "M0"
+
+        self.interface_define_patch_flag    = "// Define Interface\n"
+        self.interface_set_patch_flag       = "// Set Interface\n"
+        self.filelist_patch_flag            = "// VIP Files\n"
+
+    def __str__(self):
+        str_info = ""
+        str_info += "------ %s Start ------\n" % "EnvGen"
+        str_info += "      info_file_path(%s)\n" % self.info_file_path
+        str_info += "      project_name(%s)\n" % self.project_name
+        str_info += "      project_path(%s)\n" % self.project_path
+        for i in range(len(self.mst_agent_list)):
+            str_info += "mst_agent_list[%d]\n%s" % (i, self.mst_agent_list[i])
+        for i in range(len(self.slv_agent_list)):
+            str_info += "slv_agent_list[%d]\n%s" % (i, self.slv_agent_list[i])
+        for i in range(len(self.refm_list)):
+            str_info += "refm_list[%d]\n%s" % (i, self.refm_list[i])
+        for i in range(len(self.scb_list)):
+            str_info += "scb_list[%d]\n%s" % (i, self.scb_list[i])
+        for i in range(len(self.cov_list)):
+            str_info += "cov_list[%d]\n%s" % (i, self.cov_list[i])
+        for i in range(len(self.sva_list)):
+            str_info += "sva_list[%d]\n%s" % (i, self.sva_list[i])
+        str_info += "------ %s End ------\n" % "EnvGen"
+        return str_info
+
+    def parse_component_list(self, cur_dict, is_agent, component_list):
+        for cur_key, cur_value in cur_dict.items():
+            if cur_value["count"] <= 0:
+                continue
+            cur_env_component = EnvComponent()
+            cur_env_component.name = cur_key
+            cur_env_component.count = cur_value["count"]
+            if is_agent:
+                cur_env_component.is_vip = cur_value["is_vip"]
+            component_list.append(cur_env_component)
+
+    def parse_info(self):
+        with open(self.info_file_path, "r") as file_handler:
+            file_info = file_handler.read()
+        self.yaml_dict = yaml.load(file_info, Loader=yaml.FullLoader)
+
+        for cur_key, cur_value in self.yaml_dict.items():
+            if cur_key == "cpu_type" and cur_value != None:
+                self.cpu_type = cur_value.upper()
+            if cur_key == "link_path":
+                self.link_path= cur_value
+            if cur_key == "project_name":
+                self.project_name = cur_value
+                self.project_path = os.path.join(os.getcwd(), self.project_name)
+            if cur_key == "mst_agent_list":
+                self.parse_component_list(cur_value, True, self.mst_agent_list)
+            if cur_key == "slv_agent_list":
+                self.parse_component_list(cur_value, True, self.slv_agent_list)
+            if cur_key == "refm_list":
+                self.parse_component_list(cur_value, False, self.refm_list)
+            if cur_key == "scb_list":
+                self.parse_component_list(cur_value, False, self.scb_list)
+            if cur_key == "cov_list":
+                self.parse_component_list(cur_value, False, self.cov_list)
+            if cur_key == "sva_list":
+                self.parse_component_list(cur_value, False, self.sva_list)
+
+    def check_info(self):
+        if self.project_name == "":
+            PubFunc.exit_err("yaml_dict does not have project_name!\n%s" % self.yaml_dict)
+
+
+if __name__ == '__main__':
+    cmd_line_parser = argparse.ArgumentParser()
+    cmd_line_parser.add_argument("-i", "--info", action="store", help="the env info")
+    cmd_line_parser.add_argument("-p", "--patch_file", action="store", help="target patch file path")
+    cmd_line_parser.add_argument("-master_count", action="store", type=int, help="master_count used in patch file")
+    cmd_line_parser.add_argument("-slaver_count", action="store", type=int, help="slaver_count used in patch file")
+
+    cmd_line_args = cmd_line_parser.parse_args()
+
+    if cmd_line_args.info == None and cmd_line_args.patch_file == None:
+        PubFunc.print_err("no valid argument can be used!\n")
+        exit()
+
+    if cmd_line_args.patch_file != None:
+        if not os.path.isfile(cmd_line_args.patch_file):
+            PubFunc.print_err("[ERROR] %s is not exist!\n" % cmd_line_args.patch_file)
+            exit()
+
+        if cmd_line_args.master_count == None:
+            cmd_line_args.master_count = 0
+        if cmd_line_args.slaver_count == None:
+            cmd_line_args.slaver_count = 0
+
+        if cmd_line_args.master_count == 0 and cmd_line_args.slaver_count == 0:
+            PubFunc.print_err("both master_count & slaver_count is 0!\n")
+
+        env_gen = EnvGen(cmd_line_args.patch_file)
+        env_gen.project_path = os.path.dirname(os.getcwd())
+        vip_patch = Vip_Patch(env_gen)
+        vip_patch.integrate_vip_into_env(cmd_line_args.patch_file, cmd_line_args.master_count, cmd_line_args.slaver_count)
+        exit()
+
+    if not os.path.isfile(cmd_line_args.info):
+        PubFunc.print_err(" %s is not exist!\n" % cmd_line_args.info)
+        exit()
+
+    env_gen = EnvGen(cmd_line_args.info)
+    env_gen.parse_info()
+    env_gen.check_info()
+
+    env_dirs = EnvDirs(env_gen)
+    env_dirs.make_dirs()
+
+    cfg_files = CfgFiles(env_gen)
+    cfg_files.gen_files()
+
+    common_files = CommonFiles(env_gen)
+    common_files.gen_files()
+
+    cov_files = CovFiles(env_gen)
+    cov_files.gen_files()
+
+    env_files = EnvFiles(env_gen)
+    env_files.gen_files()
+
+    env_agent_files = EnvAgentFiles(env_gen)
+    env_agent_files.gen_files()
+
+    filelist_files = Filelist_Files(env_gen)
+    filelist_files.gen_files()
+
+    ccode_files = CcodeFiles(env_gen)
+    ccode_files.gen_files()
+
+    env_refm_files = EnvRefmFiles(env_gen)
+    env_refm_files.gen_files()
+
+    env_scb_files = EnvScbFiles(env_gen)
+    env_scb_files.gen_files()
+
+    env_callback_files = EnvCallbackFiles(env_gen)
+    env_callback_files.gen_files()
+
+    env_trans_files = EnvTransFiles(env_gen)
+    env_trans_files.gen_files()
+
+    ral_files = RalFiles(env_gen)
+    ral_files.gen_files()
+
+    regression_files = RegressionFiles(env_gen)
+    regression_files.gen_files()
+
+    script_files = ScriptFiles(env_gen)
+    script_files.gen_files()
+
+    os.system('cp %s/m.py %s/scripts/m' % (cur_scr_dir, env_gen.project_path))
+    os.chmod("%s/scripts/m" % env_gen.project_path, 0o755)
+    os.chdir(os.path.join(env_gen.project_path, 'sim'))
+    os.system('ln -s ../scripts/m ../sim/m')
+
+    seq_files = SeqFiles(env_gen)
+    seq_files.gen_files()
+
+    setup_files = SetupFiles(env_gen)
+    setup_files.gen_files()
+
+    sva_files = SvaFiles(env_gen)
+    sva_files.gen_files()
+
+    tb_files = TbFiles(env_gen)
+    tb_files.gen_files()
+
+    testcase_files = TestcaseFiles(env_gen)
+    testcase_files.gen_files()
+
+    vip_files = VipFiles(env_gen)
+    vip_files.gen_files()
+
+    mixsim_files = CoSimFiles(env_gen)
+    mixsim_files.gen_files()
+
+    vip_patch = Vip_Patch(env_gen)
+    vip_patch.run_patch()
+
+    if env_gen.link_path:
+        if os.path.exists(env_gen.link_path):
+            link_directories(env_gen.project_path, env_gen.link_path)
+        else:
+            PubFunc.print_err(" %s is not exist! soft linker for result dir stopped\n" % env_gen.link_path)
+    else:
+        PubFunc.print_warn("link path is not enabled in %s!\n" % cmd_line_args.info)

@@ -1,0 +1,21 @@
+
+group usb_1_group {
+    timeout : 92000;
+    sv_seed : gen_random;
+
+    test usb_1_device_tc             { }
+    test usb_1_host_tc               { }
+    test usb_1_fifo_tc               { }
+    test usb_1_device_suspend_tc     { }
+#ifndef POST_SIM_ON
+    test usb_1_device_for_all_endpoint_tc    { }
+#endif
+
+// LOW priority
+    test usb_1_phy_test_tc        { }
+
+#ifndef POST_SIM_ON
+    test usb_1_sram_test_tc       { }
+#endif
+
+}

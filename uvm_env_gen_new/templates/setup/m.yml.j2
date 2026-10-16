@@ -1,0 +1,69 @@
+
+# -------- set_env select for special define ------------- #
+is_mixed:
+    False
+
+set_env:
+    default:
+        ../setup/set_env.csh
+    POST_SIM:
+        ../setup/set_env_post.csh
+    FPGA_SIM:
+        ../setup/set_env_fpga.csh
+
+# -------- rtl_filelist select for special define ------------- #
+rtl_filelist:
+    default:
+        ../filelist/presim_rtl_filelist.f
+    POST_SIM:
+        ../filelist/postsim_rtl_filelist.f
+    FPGA_SIM:
+        ../filelist/fpga_rtl_filelist.f
+pre_sim_duv_vhdl_flist:
+    ../filelist/presim_rtl_vhdl_filelist.f
+
+regression_cmd:
+    vmanager -server d03:8080 &
+# lsf_args:
+#     bsub -Ip -q calc
+# mixsim_lsf_args:
+#     bsub -Ip -q calc -n 8 -R span[hosts=1]
+
+
+vhdlan_default_comp_args:
+    -kdb -full64 -no_opt
+vlogan_default_comp_args:
+    -sverilog +incdir+${UVM_HOME}/src ${UVM_HOME}/src/uvm_pkg.sv
+    -timescale=1ns/1ps
+    -lca -kdb -full64 +v2k +libext+.sv+.v
+    +lint=TFIPC-L +lint=PCWM
+    -debug_acc+all -debug_region=cell+encrypt
+    -debug_access+r+w -debug_region+cell
+vlogan_only_pre_comp_args:
+
+vlogan_only_post_comp_args:
+
+vcs_default_comp_args:
+    ${UVM_HOME}/src/dpi/uvm_dpi.cc
+    -CFLAGS -DVCS
+    -timescale=1ns/1ps
+    -debug_acc+all -debug_region=cell+encrypt -kdb -lca -full64 +vpi
+    -debug_access+r+w -debug_region+cell
+vcs_only_pre_comp_args:
+    -deraceclockdata +notimingcheck +nospecify
+vcs_only_post_comp_args:
+    +neg_tchk +overlap -negdelay -sdfretain +sdfverbose
+    -hsopt=gates
+    -diag=sdf:verbose
+vcs_pa_comp_args:
+    -power=supply_aware_ie
+vcs_default_sim_args:
+    -licqueue +vcs+flush+all
+    +UVM_MAX_QUIT_COUNT=30,YES
+    +fsdb+delta
+    +fsdb+sva_success
+    +fsdb+force
+upf_file_path:
+    $CS32GX503_DIG_DIR/src/upf_1.0/cs32gx503_top.upf
+upf_cfg_path:
+    ../scripts/power_config.tcl

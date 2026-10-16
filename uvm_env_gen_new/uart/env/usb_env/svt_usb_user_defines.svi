@@ -1,0 +1,7 @@
+//`define DEV_PHY      // default = Host-side Phy
+//`define UTMI_16      // default = UTMI 8-bit 
+`ifdef UTMI_16
+`define SVT_USB_20_USER_HS_RX_2_TX_MIN_INTER_PKT_DELAY 16  // required with SPEED_HS and UTMI_16
+`endif
+`define USB_SHARED_DRVR_MON_SB 0 // To control the Driver-Monitor Packet and Transfer Scoreboard when enable_transfer_scoreboard/enable_packet_scoreboard is enabled.
+

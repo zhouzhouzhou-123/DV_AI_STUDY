@@ -1,0 +1,72 @@
+{{ file_header }}
+
+`ifndef TOP__SV
+`define TOP__SV
+
+`ifdef MIX_SIM
+    `include "../tb/xa/CHIP_TOP_XA.sv"
+`else
+    `include "../tb/CHIP_TOP.sv"
+`endif
+
+module top();
+
+    {{ interface_define_flag }}
+{% for m in if_members %}
+    {{ m.type_aligned }}{{ m.name }}();
+{% endfor %}
+
+    initial
+    begin
+        {{ interface_set_flag }}
+{% for a in mst_agents_non_vip %}
+{% if a.count == 1 %}
+        uvm_config_db#(virtual {{ a.name }}_if)::set(uvm_root::get(), "uvm_test_top.mo_env.mo_{{ a.name }}_master_agent.*", "mo_vif", {{ a.name }}_master_if);
+{% else %}
+{% for i in range(a.count) %}
+        uvm_config_db#(virtual {{ a.name }}_if)::set(uvm_root::get(), "uvm_test_top.mo_env.moa_{{ a.name }}_master_agent[{{ i }}].*", "mo_vif", {{ a.name }}_master_if[{{ i }}]);
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% for a in slv_agents_non_vip %}
+{% if a.count == 1 %}
+        uvm_config_db#(virtual {{ a.name }}_if)::set(uvm_root::get(), "uvm_test_top.mo_env.mo_{{ a.name }}_slaver_agent.*", "mo_vif", {{ a.name }}_slaver_if);
+{% else %}
+{% for i in range(a.count) %}
+        uvm_config_db#(virtual {{ a.name }}_if)::set(uvm_root::get(), "uvm_test_top.mo_env.moa_{{ a.name }}_slaver_agent[{{ i }}].*", "mo_vif", {{ a.name }}_slaver_if[{{ i }}]);
+{% endfor %}
+{% endif %}
+{% endfor %}
+    end
+
+    initial
+    begin
+        int ms_count = 0;
+        $timeformat(-12, 0, "ps", 14);
+        forever
+        begin
+            #1ms;
+            ms_count++;
+            $display("***********run times is %0d ms *********** ",ms_count);
+        end
+    end
+
+    initial
+    begin
+        run_test();
+    end
+
+    `include "../tb/top_connection.sv"
+    // ------------ load SDF ------------- //
+    `ifdef POST_SIM_ON
+        `include "../tb/common/sdf_annotation.sv"
+    `endif
+    // ------------ co-sim ------------- //
+    `ifdef MIX_SIM
+        `include "../tb/xa/xa_basetask.sv"
+    `endif
+    `include "../tb/common/waveform_dump.sv"
+
+endmodule : top
+
+`endif // TOP__SV

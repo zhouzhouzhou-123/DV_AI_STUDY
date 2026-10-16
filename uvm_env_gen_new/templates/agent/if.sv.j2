@@ -1,0 +1,24 @@
+{{ file_header }}
+
+`ifndef {{ name_upper }}_IF__SV
+`define {{ name_upper }}_IF__SV
+
+interface {{ name }}_if #(INPUT_DELAY=1, OUTPUT_DELAY=1) (input bit clk);
+
+    logic [7:0] dout;
+
+    clocking drv_cb @(posedge clk);
+        default input #INPUT_DELAY output #OUTPUT_DELAY;
+
+        output  dout;
+    endclocking
+
+    clocking mon_cb @(posedge clk);
+        default input #INPUT_DELAY output #OUTPUT_DELAY;
+
+        input dout;
+    endclocking
+
+endinterface
+
+`endif // {{ name_upper }}_IF__SV

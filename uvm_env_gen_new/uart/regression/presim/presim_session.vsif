@@ -1,0 +1,25 @@
+
+session presim_session {
+    top_dir:${XXX_VERI_PATH}/regression/result;
+}
+group comp_group {
+    scan_script:"vm_scan.pl uvm.flt vcs.flt";
+    run_script:"${XXX_VERI_PATH}/scripts/vcs_vm.sh comp";
+    count   : 1;
+
+    #include "${XXX_VERI_PATH}/testcases/wdt/wdt.vsif"
+
+}
+
+group run_group {
+    scan_script:"vm_scan.pl uvm.flt vcs.flt";
+    run_script:"${XXX_VERI_PATH}/scripts/vcs_vm.sh nocomp_run";
+    depends_on : ../comp_group;
+    sv_seed : gen_random;
+    timeout : 9200;
+    count   : 10;
+
+    #include "${M1026_VERI_PATH}/testcases/wdt/wdt.vsif"
+
+}
+

@@ -1,0 +1,1759 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import re
+import linecache
+import shutil
+import random
+import yaml
+import subprocess
+import shlex
+import glob
+import json
+import hashlib
+pubfunc_dir = os.path.abspath("/home/zhouxk/project/dig_veri_ip/cs-digital-ip/common_script/script_for_verify/public")
+sys.path.append(pubfunc_dir)
+
+from pubfunc import PubFunc
+
+class parse_yaml_file:
+    def parse_info(self):
+        file_handler = open("../setup/m.yml", "r")
+        file_info = file_handler.read()
+        try:
+            self.yaml_dict = yaml.load(file_info, Loader=yaml.FullLoader)
+        except AttributeError:
+            self.yaml_dict = yaml.load(file_info)
+
+        self.set_env_dict = ''
+        self.rtl_filelist_dict = ''
+        self.vcs_default_comp_args= ''
+        self.vcs_only_pre_comp_args= ''
+        self.vcs_only_post_comp_args= ''
+        self.vcs_pa_comp_args= ''
+        self.vcs_default_sim_args= ''
+        self.vhdlan_default_comp_args= ''
+        self.vlogan_default_comp_args= ''
+        self.vlogan_only_pre_comp_args= ''
+        self.vlogan_only_post_comp_args= ''
+        self.pre_sim_duv_vhdl_flist= ''
+        self.is_mixed= ''
+        self.upf_cfg_path= ''
+        self.vendor_ip_config = {}
+
+        for key, value in self.yaml_dict.items():
+            if key == "regression_cmd":
+                self.regression_cmd = ''
+                if isinstance(value, str):
+                    self.regression_cmd = value
+                continue
+            if key == "lsf_args":
+                self.lsf_args = ''
+                if isinstance(value, str):
+                    self.lsf_args = value
+                continue
+            if key == "mixsim_lsf_args":
+                self.mixsim_lsf_args = ''
+                if isinstance(value, str):
+                    self.mixsim_lsf_args = value
+                continue
+            if key == "upf_file_path":
+                self.upf_file_path = ''
+                if isinstance(value, str):
+                    self.upf_file_path = value
+                continue
+            if key == "upf_cfg_path":
+                self.upf_cfg_path = ''
+                if isinstance(value, str):
+                    self.upf_cfg_path = value
+                continue
+            if key == "common_additional_args":
+                self.common_additional_args = ''
+                if isinstance(value, str):
+                    self.common_additional_args = value
+                continue
+
+            if key == "set_env":
+                if self.yaml_dict["set_env"] != None:
+                    self.set_env_dict = self.yaml_dict["set_env"]
+                continue
+
+            if key == "rtl_filelist":
+                if self.yaml_dict["rtl_filelist"] != None:
+                    self.rtl_filelist_dict = self.yaml_dict["rtl_filelist"]
+                continue
+
+            if key == "vcs_default_comp_args":
+                if self.yaml_dict["vcs_default_comp_args"] != None:
+                    self.vcs_default_comp_args= self.yaml_dict["vcs_default_comp_args"]
+                continue
+
+            if key == "vcs_only_pre_comp_args":
+                if self.yaml_dict["vcs_only_pre_comp_args"] != None:
+                    self.vcs_only_pre_comp_args= self.yaml_dict["vcs_only_pre_comp_args"]
+                continue
+
+            if key == "vcs_only_post_comp_args":
+                if self.yaml_dict["vcs_only_post_comp_args"] != None:
+                    self.vcs_only_post_comp_args= self.yaml_dict["vcs_only_post_comp_args"]
+                continue
+
+            if key == "vcs_pa_comp_args":
+                if self.yaml_dict["vcs_pa_comp_args"] != None:
+                    self.vcs_pa_comp_args= self.yaml_dict["vcs_pa_comp_args"]
+                continue
+
+            if key == "vcs_default_sim_args":
+                if self.yaml_dict["vcs_default_sim_args"] != None:
+                    self.vcs_default_sim_args= self.yaml_dict["vcs_default_sim_args"]
+                continue
+
+            if key == "vhdlan_default_comp_args":
+                if self.yaml_dict["vhdlan_default_comp_args"] != None:
+                    self.vhdlan_default_comp_args= self.yaml_dict["vhdlan_default_comp_args"]
+                continue
+
+            if key == "vlogan_default_comp_args":
+                if self.yaml_dict["vlogan_default_comp_args"] != None:
+                    self.vlogan_default_comp_args= self.yaml_dict["vlogan_default_comp_args"]
+                continue
+
+            if key == "vlogan_only_pre_comp_args":
+                if self.yaml_dict["vlogan_only_pre_comp_args"] != None:
+                    self.vlogan_only_pre_comp_args= self.yaml_dict["vlogan_only_pre_comp_args"]
+                continue
+
+            if key == "vlogan_only_post_comp_args":
+                if self.yaml_dict["vlogan_only_post_comp_args"] != None:
+                    self.vlogan_only_post_comp_args= self.yaml_dict["vlogan_only_post_comp_args"]
+                continue
+
+            if key == "pre_sim_duv_vhdl_flist":
+                if self.yaml_dict["pre_sim_duv_vhdl_flist"] != None:
+                    self.pre_sim_duv_vhdl_flist= self.yaml_dict["pre_sim_duv_vhdl_flist"]
+                continue
+
+            if key == "is_mixed":
+                if self.yaml_dict["is_mixed"] != None:
+                    self.is_mixed= self.yaml_dict["is_mixed"]
+                continue
+
+            if key == "upf_cfg_path":
+                if self.yaml_dict["upf_cfg_path"] != None:
+                    self.upf_cfg_path= self.yaml_dict["upf_cfg_path"]
+                continue
+
+            if key == "vendor_ip":
+                if self.yaml_dict["vendor_ip"] != None:
+                    self.vendor_ip_config = self.yaml_dict["vendor_ip"]
+                continue
+
+            PubFunc.print_err("%s not support in m.yml !\n" % key)
+
+class uvm_script_runner:
+    m_parse_yaml_file = parse_yaml_file()
+
+    command_type        = ''
+    testcase_name       = ''
+    testcase_file_path  = ''
+    define_from_user    = ''
+    define_from_m       = ''
+    seed_from_user      = ''
+    define_info_used_in_log_file_name = ''
+    addition_sim_args   =''
+
+    comp_output_file_path      = ''
+    sim_output_file_path       = ''
+
+    presim_sim_result_path     = './result/presim/'
+    postsim_sim_result_path    = './result/postsim/'
+    pasim_sim_result_path      = './result/pasim/'
+    mixsim_sim_result_path     = './result/mixsim/'
+
+    presim_comp_result_path     = './comp_result/presim/'
+    postsim_comp_result_path    = './comp_result/postsim/'
+    pasim_comp_result_path      = './comp_result/pasim/'
+    mixsim_comp_result_path     = './comp_result/mixsim/'
+    sim_result_path             = ''
+    coverage_result_path        = ''
+    comp_result_path            = ''
+
+    set_env_file_path   = ''
+    dut_filelist_name   = ''
+
+    simv_file_name = ''
+    comp_test_name=''
+    comp_log_file_name=''
+    fsdb_waveform_file_name=''
+    vcd_waveform_file_name=''
+    log_file_name   = ''
+
+    target_path_for_timing_violation = ''
+    violation_report_file_name = 'vio.rpt'
+    violation_report_file_handler = ''
+    violation_report_start_time = ''
+
+    rtl_pkg_path = ''
+    tb_pkg_path = ''
+    rtl_shared_pkg_dir = ''
+    rtl_modified = False
+    tb_modified = False
+    incr_cache_file = './comp_result/incr_compile_cache.json'
+    incr_cache_key = ''
+    RTL_SHARED_CACHE_KEY = 'rtl_shared'
+    is_incr_compile_mode = False
+    vhdl_filelist_name = ''
+    need_vhdl_compile = True
+
+    sdf_annotate_log_file_path = []
+
+    # files for co-simulation
+    mix_sim_analog_file_path = ''
+    mix_sim_cfg_file_path = ''
+    mix_sim_init_file_path = ''
+
+    # testcase run-time config info
+    run_time_config_info = ''
+
+    def print_help_info(self):
+        help_info = '''\
+-------------------------------------------------------------------------------------
+| You can use this script like this:  m [OPERATION] [TESTCASE_NAME] [DEFINE] [SEED] |
+-------------------------------------------------------------------------------------
+[DEFINE]
+FSDB_DUMP_OFF
+    Disable FSDB dump. By default, FSDB dump is enabled.
+
+PRE_SIM
+    Run pre simulation. By default, pre simulation is executed.
+
+POST_SIM_ON
+    Run post simulation. By default, pre simulation is executed.
+
+MIX_SIM
+    Run mixed-simulation with XA/AMS
+
+PA_SIM
+    Run power-aware simulation(UPF/CPF)
+------------------------------------------------
+For example:
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+  |m | Command Type | Testcase Name |         User Defines               |   Seed    |                 Description
+  ------------------------------------------------------------------------------------------------------------------------------------------------------
+   m    ral                                                                                 ##auto_gen_ral
+   m    memmap                                                                              ##auto_gen_memap
+   m    io                                                                                  ##io_value_chk
+
+   m    comp           basetest                                                             ## compile only for PRE_SIM
+   m    comp_pa        basetest                                                             ## compile only for PA_SIM
+   m    comp_ff        basetest                                                             ## compile only for POST_SIM_ON & FF_CORNER
+   m    comp_mix       basetest                                                             ## compile only for MIX_SIM
+   m    comp_mix_ff    basetest                                                             ## compile only for MIX_SIM & POST_SIM_ON
+
+   m    nocomp_run     basetest                                                             ## compile only for PRE_SIM
+   m    nocomp_run_pa  basetest                                                             ## compile only for PA_SIM
+   m    nocomp_run_ff  basetest                                                             ## compile only for POST_SIM_ON & FF_CORNER
+   m    nocomp_run_mix      basetest                                                        ## compile only for MIX_SIM
+   m    nocomp_run_mix_ff   basetest                                                        ## compile only for MIX_SIM & POST_SIM_ON
+
+    m    run            basetest                                                             ## pre_sim : random seed && FSDB enable
+    m    run            ../testcases/basetest                                                ## pre_sim : random seed && FSDB enable
+    m    run            basetest       define=FSDB_DUMP_OFF                                  ## pre_sim : random seed && FSDB disable
+    m    run            basetest       define=DATA_WIDTH_32+APB_BUS            111           ## pre_sim : multi-define && seed=111
+
+    m    incr_run       basetest                                                             ## incremental compile & run (auto detect RTL/TB changes)
+    m    incr_run       basetest       111                                                   ## incremental compile & run with seed=111
+
+    m    comp_rtl       basetest                                                             ## compile RTL only (presim_rtl_filelist.f)
+    m    comp_tb        basetest                                                             ## compile TB only (tb_filelist.f + testcases)
+
+    m    run_pa         basetest                                                             ## pa_sim : power-aware simulation
+   m    run_xprop      basetest                                                             ## pre_sim : add -xprop
+
+   m    run_ss         basetest                                                             ## POST_SIM_ON : SS_CORNER
+   m    run_ss         basetest       define=               111   plusargs=AA=1+BB=2        ## addition_simulation_command
+   m    run_ff         basetest                                                             ## POST_SIM_ON : FF_CORNER
+   m    run_xx         basetest                                                             ## POST_SIM_ON : XX_CORNER
+   m    run_xx         basetest       define=DATA_WIDTH_32+APB_BUS            111           ## POST_SIM_ON : XX_CORNER && multi-define && seed=111
+
+   m    run_mix        basetest                                                             ## mixed-sim : default_vcsAD.init && default_cfg && default.sp
+   m    run_mix        basetest       spice=AA.sp cfg=BB_cfg init=CC.ini                    ## mixed-sim : with specified spcie && cfg && init
+   m    run_mix        basetest       spice=AA.sp cfg=BB_cfg init=CC.ini define=AA seed=222 ## mixed-sim : with define && seed
+   m    run_mix_ff     basetest                                                             ## mixed-post-sim : FF_CORNER
+   m    run_mix_xx     basetest                                                             ## mixed-post-sim : XX_CORNER
+
+   m    run_make       basetest       define=AAA+BBB                                        ## make mainxxx.c for basetest
+   m    make           clean                                                                ## make clean
+
+   m    verdi                                                                               ## verdi for RTL
+   m    verdi_post                                                                          ## verdi for NETLIST
+   m    verdi_pa                                                                            ## verdi for power-aware(UPF/CPF)
+   m    verdi_mix                                                                           ## verdi for mixed-simulation
+   m    verdi_mix_post                                                                      ## verdi for POST mixed-simulation
+   m    verdi                            define=FPGA_SIM+GPIO_TEST                          ## verdi with multi-define
+
+   m    vio                                                                                 ## collect timing violation in regression/result/
+   m    vio                              TARGET_PATH                                        ## collect timing violation in TARGET_PATH
+   m    vio                              TARGET_PATH    START_TIME                          ## collect timing violation in TARGET_PATH after START_TIME(ps)
+
+   m    cov                                                                                 ## analysis coverage after regression
+   m    regression                                                                          ## run regression command
+   m    clean                                                                               ## delete useless files
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------'''
+        print (help_info)
+
+    def run_command_on_shell(self, command):
+        # command = command.replace('  ', ' ')
+        print("run command : %s " % command)
+        os.system(command)
+        #result = subprocess.run(command, shell=True)
+        #return result.returncode
+
+    def run_command_on_shell_with_return(self, command):
+        # command = command.replace('  ', ' ')
+        print("run command : %s " % command)
+        # os.system(command)
+        result = subprocess.run(command, shell=True)
+        return result.returncode
+
+    def find_file_in_target_path(self, file_name, target_path, rec=True):
+        if rec == True:
+            pattern = os.path.join(target_path, '**', file_name)
+            return glob.glob(pattern, recursive=True)
+        else:
+            pattern = os.path.join(target_path, file_name)
+            return glob.glob(pattern, recursive=False)
+
+
+    def analysis_tc_define(self):
+        line_count = 0
+        next_line_index = 0
+
+        file_name = "../setup/tc_define.sv"
+        # check weather target path exists
+        if os.path.exists(file_name) == False:
+            PubFunc.exit_err("%s not exists" % file_name)
+        for index, line in enumerate(open(file_name, 'r')):
+            line_count += 1
+
+        is_target_tc_founded = 0
+        allowed_tc_index = {}
+        dummy_tc_name = self.testcase_name
+        while next_line_index <= line_count:
+            next_line_index += 1
+            line_content = linecache.getline(file_name, next_line_index)
+            line_content = line_content.replace(" ", "")
+            line_content = line_content.replace("\n", "")
+            line_content = line_content.replace("\t", "")
+            # exclude comment "//"
+            if re.match("^\/\/.*$", line_content):
+                continue
+            # exclude comment "/*"
+            if re.match("^\/\*.*$", line_content):
+                while next_line_index <= line_count:
+                    if re.match(".*\*\/$", line_content):
+                        break
+                    next_line_index += 1
+                    line_content = linecache.getline(file_name, next_line_index)
+                    line_content = line_content.replace(" ", "")
+                    line_content = line_content.replace("\n", "")
+                    line_content = line_content.replace("\t", "")
+            # fine tc with define
+            line_content = line_content.replace(" ", "")
+            line_content = line_content.replace("\n", "")
+            line_content = line_content.replace("\t", "")
+            if len(line_content) == 0:
+                continue;
+            tc_infos = line_content.split('%')
+            if len(tc_infos) == 0:
+                PubFunc.exit_err("%s in tc_define.sv is invalid" % line_content)
+
+            tc_index = ''
+            tc_name = ''
+            define = ''
+            plusargs = ''
+            is_target_tc_founded = False
+            for info in tc_infos:
+                if info.startswith('tc_index='):
+                    tc_index = info.split('tc_index=')[1]
+                    if PubFunc.is_integer(tc_index) == False:
+                        PubFunc.exit_err("tc_index %0s in %s is not integer" % tc_index, line_content)
+                    continue
+
+                if info.startswith('tc='):
+                    if len(tc_name) != 0:
+                        PubFunc.exit_err("%s in tc_define.sv is invalid" % line_content)
+
+                    tc_name = info.split('tc=')[1]
+
+                    if tc_name in allowed_tc_index:
+                        if len(tc_index) == 0:
+                            PubFunc.exit_err("%s in tc_define.sv is invalid, tc_index is needed" % line_content)
+                        if tc_index in allowed_tc_index[tc_name]:
+                            PubFunc.exit_err("%s in tc_define.sv is invalid, tc_index is already used" % line_content)
+                        allowed_tc_index[tc_name].append(tc_index)
+                    else:
+                        if len(tc_index) != 0:
+                            allowed_tc_index[tc_name] = []
+                            allowed_tc_index[tc_name].append(tc_index)
+
+                    continue
+
+                # get define & plusargs
+                if dummy_tc_name == tc_name:
+                    if tc_name in allowed_tc_index:
+                        PubFunc.exit_err("tc_index is need for %s, for example %s_0" % (dummy_tc_name, self.testcase_name))
+                else:
+                    if not dummy_tc_name.startswith(tc_name + '_') :
+                        continue
+                    index = dummy_tc_name.split(tc_name + '_')[1];
+                    if PubFunc.is_integer(index):
+                        if tc_name not in allowed_tc_index or \
+                            len(allowed_tc_index[tc_name]) == 0 or \
+                            index not in allowed_tc_index[tc_name] or \
+                            index != tc_index :
+                            continue
+                    else:
+                        continue
+
+                self.testcase_name = tc_name
+                if info.startswith('define='):
+                    self.define_from_user += info.split('define=')[1] + '+'
+                    continue
+                if info.startswith('plusargs='):
+                    self.get_addition_sim_args(tc_infos)
+                    continue
+
+        # check weather tc_name valid
+        self.find_tc_path_by_tc_name(self.testcase_name, True)
+        if ("%s.sv" % self.testcase_name) in self.testcase_file_path:
+            if is_target_tc_founded == 1:
+                PubFunc.exit_err("%s founded more than twice in tc_define.sv" % self.testcase_name)
+            is_target_tc_founded = 1
+            self.testcase_name,tc_path = self.find_tc_path_by_tc_name(self.testcase_name, True)
+            if tc_path == self.testcase_file_path:
+                self.define_from_user += define + '+'
+
+    def find_tc_path_by_tc_name(self, tc_name, is_called_by_tc_define = False):
+        target_tc_name = ""
+        target_tc_path = ""
+        if "/" in tc_name:
+            target_tc_path = tc_name
+            target_tc_name = tc_name.split('/')[-1]
+            if '.' in target_tc_name:
+                target_tc_name = target_tc_name.split('.')[0]
+            else:
+                target_tc_path += ".sv"
+        else:
+            target_tc_name = tc_name
+            target_tc_path_list = self.find_file_in_target_path(tc_name + ".sv", "../testcases")
+            if len(target_tc_path_list) == 0:
+                if is_called_by_tc_define == False:
+                    PubFunc.exit_err("%s.sv not found in ../testcases!" % tc_name)
+                else:
+                    PubFunc.exit_err("tc_define.sv : %s.sv not found in ../testcases!" % tc_name)
+            if len(target_tc_path_list) > 1:
+                if is_called_by_tc_define == False:
+                    PubFunc.print_err("%s %s.sv find in ..testcases/!" % (len(target_tc_path_list), tc_name))
+                else:
+                    PubFunc.print_err("tc_define.sv : %s %s.sv find in ..testcases/!" % (len(target_tc_path_list), tc_name))
+                for find_value in target_tc_path_list:
+                    PubFunc.print_err("%s : %s" % (target_tc_path_list.index(find_value), find_value))
+                exit()
+            target_tc_path = target_tc_path_list[0]
+
+        # check weather target path exists
+        if os.path.exists(target_tc_path) == False:
+            PubFunc.exit_err("%s not exists" % target_tc_path)
+
+        if len(target_tc_path) == 0:
+            PubFunc.exit_err("can not find testcase: %s " % target_tc_name)
+        return target_tc_name, target_tc_path
+
+    def analysis_command_from_user(self, argv1, argv2, argv3, argv4, argv5, argv6, argv7, all_argvs):
+        self.command_type = argv1
+        # prepare self.define_from_m & self.define_from_user
+        if self.command_type == 'run_make':
+            self.define_from_m = ''
+        elif self.command_type == 'run' or self.command_type == 'comp' or self.command_type == 'nocomp_run':
+            self.define_from_m = 'PRE_SIM+'
+        elif self.command_type == 'incr_run':
+            self.define_from_m = 'PRE_SIM+'
+        elif self.command_type == 'comp_rtl' or self.command_type == 'comp_tb':
+            self.define_from_m = 'PRE_SIM+'
+        elif 'run_pa' in self.command_type or 'comp_pa' in self.command_type:
+            self.define_from_m = 'PA_SIM+'
+        elif 'run_mix' in self.command_type or 'comp_mix' in self.command_type:
+            self.define_from_m = 'MIX_SIM+'
+            if '_mix_' in self.command_type:
+                self.define_from_user = 'POST_SIM_ON+'
+                self.define_from_user += self.command_type.split('_mix_')[1].upper() + '_CORNER+'
+        elif self.command_type == 'run_xprop':
+            self.define_from_m = 'XPROP_SIM+'
+        elif 'run_' in self.command_type and 'run_regression' not in self.command_type:
+            self.define_from_m = 'POST_SIM_ON+'
+            self.define_from_user += self.command_type.split('run_')[1].upper() + '_CORNER+'
+        elif 'comp_' in self.command_type:
+            self.define_from_m = 'POST_SIM_ON+'
+            self.define_from_user += self.command_type.split('comp_')[1].upper() + '_CORNER+'
+
+        # get spice && cfg && init file for mix_sim
+        if 'run_mix' in self.command_type or 'comp_mix' in self.command_type:
+            if len(argv3) != 0 and 'spice=' not in argv3 and 'cfg=' not in argv3 and 'init=' not in argv3 and 'define=' not in argv3 and 'seed=' not in argv3:
+                PubFunc.exit_err("wrong command for %s : %s " % (self.command_type, argv3))
+            if len(argv4) != 0 and 'spice=' not in argv4 and 'cfg=' not in argv4 and 'init=' not in argv4 and 'define=' not in argv4 and 'seed=' not in argv4:
+                PubFunc.exit_err("wrong command for %s : %s " % (self.command_type, argv4))
+            if len(argv5) != 0 and 'spice=' not in argv5 and 'cfg=' not in argv5 and 'init=' not in argv5 and 'define=' not in argv5 and 'seed=' not in argv5:
+                PubFunc.exit_err("wrong command for %s : %s " % (self.command_type, argv5))
+            if len(argv6) != 0 and 'spice=' not in argv6 and 'cfg=' not in argv6 and 'init=' not in argv6 and 'define=' not in argv6 and 'seed=' not in argv6:
+                PubFunc.exit_err("wrong command for %s : %s " % (self.command_type, argv6))
+            if len(argv7) != 0 and 'spice=' not in argv7 and 'cfg=' not in argv7 and 'init=' not in argv7 and 'define=' not in argv7 and 'seed=' not in argv7:
+                PubFunc.exit_err("wrong command for %s : %s " % (self.command_type, argv7))
+            user_define_for_mixed_simulation = argv3 + ' ' + argv4 + ' ' + argv5 + ' ' + argv6 + ' '  + argv7 + ' '
+            # get mix_sim_analog_file_path
+            self.mix_sim_analog_file_path = re.findall('spice=(\S+?)\s', user_define_for_mixed_simulation)
+            print(self.mix_sim_analog_file_path)
+            if len(self.mix_sim_analog_file_path) != 0:
+                self.mix_sim_analog_file_path = self.mix_sim_analog_file_path[0]
+                if "../mixsim" not in self.mix_sim_analog_file_path:
+                    self.mix_sim_analog_file_path = "../mixsim/spice/" + self.mix_sim_analog_file_path
+            else:
+                self.mix_sim_analog_file_path = '../mixsim/spice/default.sp'
+            # get mix_sim_cfg_file_path
+            self.mix_sim_cfg_file_path = re.findall('cfg=(\S+?)\s', user_define_for_mixed_simulation)
+            if len(self.mix_sim_cfg_file_path) != 0:
+                self.mix_sim_cfg_file_path = self.mix_sim_cfg_file_path[0]
+                if "../mixsim" not in self.mix_sim_cfg_file_path:
+                    self.mix_sim_cfg_file_path = "../mixsim/cfg/" + self.mix_sim_cfg_file_path
+            else:
+                self.mix_sim_cfg_file_path = '../mixsim/cfg/default_cfg'
+            # get mix_sim_init_file_path
+            self.mix_sim_init_file_path = re.findall('init=(\S+?)\s', user_define_for_mixed_simulation)
+            if len(self.mix_sim_init_file_path) != 0:
+                self.mix_sim_init_file_path = self.mix_sim_init_file_path[0]
+                if "../mixsim" not in self.mix_sim_init_file_path:
+                    self.mix_sim_init_file_path = "../mixsim/init/" + self.mix_sim_init_file_path
+            else:
+                self.mix_sim_init_file_path = '../mixsim/init/default_vcsAD.init'
+            # get define_from_user
+            temp_define_list = re.findall('define=(\S+?)\s', user_define_for_mixed_simulation)
+            if len(temp_define_list) != 0:
+                self.define_from_user += temp_define_list[0]+'+'
+            # get seed_from_user
+            temp_seed_list = re.findall('seed=(\S+?)\s', user_define_for_mixed_simulation)
+            if len(temp_seed_list) != 0:
+                self.seed_from_user = temp_seed_list[0]
+            else:
+                self.seed_from_user = "111"
+        elif 'run' in self.command_type or 'comp' in self.command_type:
+            # get define && seed && pluargs for digital simulation
+            # modify by liucf @2026-02-02
+            # -- add support for pluargs=AAA=2+BBB=1
+            for arg in sys.argv[3:]:
+                if arg.startswith('define='):
+                    self.define_from_user += arg.split('define=')[1] + '+'
+                    continue
+                if arg.startswith('plusargs='):
+                    continue
+                if PubFunc.is_integer(arg):
+                    self.seed_from_user = arg
+                    continue
+                PubFunc.exit_err("wrong command format!")
+
+            if len(self.seed_from_user) == 0:
+                self.seed_from_user = str(random.randint(-10000000, 10000000))
+
+        # get testcase name & testcase_file_path
+        if 'run' in self.command_type or 'comp' in self.command_type:
+            if len(argv2) == 0:
+                PubFunc.exit_err("testcase name must be provided !")
+            self.testcase_name = argv2
+            # add macro from user file (add macro by test name)
+            self.analysis_tc_define()
+
+            self.testcase_name, self.testcase_file_path = self.find_tc_path_by_tc_name(self.testcase_name)
+
+
+        # prepare define_info_used_in_log_file_name
+        if len(self.define_from_user) != 0:
+            define_list = self.define_from_user.split('+')
+            self.define_info_used_in_log_file_name = '_with_define'
+            for index in range(len(define_list)):
+                if len(define_list[index]) == 0:
+                    continue
+                self.define_info_used_in_log_file_name += '_' + define_list[index]
+        # ------- open verdi ----------
+        # find define_from_user
+        if 'verdi' in self.command_type:
+            self.comp_result_path = './comp_result/'
+            if 'define=' in argv2:
+                self.define_from_user += argv2.split('define=')[1]+'+'
+            if len(argv3) != 0 or len(argv4) != 0:
+                PubFunc.exit_err("wrong command format!")
+        # find define_from_m
+
+        if self.command_type == "verdi":
+            self.define_from_m = 'PRE_SIM+'
+        if self.command_type == "verdi_post":
+            self.define_from_m = 'POST_SIM_ON+'
+        elif self.command_type == "verdi_pa":
+            self.define_from_m = 'PA_SIM+'
+        elif self.command_type == "verdi_mix":
+            self.define_from_m = 'MIX_SIM+'
+        elif self.command_type == "verdi_mix_post":
+            self.define_from_m = 'MIX_SIM+POST_SIM_ON+'
+        elif "verdi_" in self.command_type:
+            PubFunc.exit_err("%s unsupported !" % self.command_type)
+
+        # default dut_filelist_name
+        self.dut_filelist_name = '../filelist/presim_rtl_filelist.f'
+        for key in self.m_parse_yaml_file.rtl_filelist_dict:
+            if 'default' in key:
+                self.dut_filelist_name = self.m_parse_yaml_file.rtl_filelist_dict[key]
+                break
+        # special dut_filelist_name
+        for key in self.m_parse_yaml_file.rtl_filelist_dict:
+            if key.upper() in self.define_from_m or key.upper() in self.define_from_user:
+                self.dut_filelist_name = self.m_parse_yaml_file.rtl_filelist_dict[key]
+                break
+        # collect timing violation for POST SIM
+        if 'vio' in self.command_type:
+            if len(argv2) != 0:
+                self.target_path_for_timing_violation = argv2
+            if len(argv3) != 0:
+                self.violation_report_start_time = argv3
+        # prepare wave_sim_result_path
+        if 'run' not in self.command_type and 'comp' not in self.command_type:
+            return
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            self.sim_result_path += self.mixsim_sim_result_path + self.testcase_name + "/"
+            self.comp_result_path += self.mixsim_comp_result_path
+        elif 'PA_SIM' in self.define_from_m or 'PA_SIM' in self.define_from_user:
+            self.sim_result_path += self.pasim_sim_result_path + self.testcase_name + "/"
+            self.comp_result_path += self.pasim_comp_result_path
+        elif 'POST_SIM_ON' in self.define_from_m or 'POST_SIM_ON' in self.define_from_user:
+            self.sim_result_path += self.postsim_sim_result_path + self.testcase_name + "/"
+            self.comp_result_path += self.postsim_comp_result_path
+        else:
+            self.sim_result_path += self.presim_sim_result_path + self.testcase_name + "/"
+            self.comp_result_path += self.presim_comp_result_path
+        self.sim_result_path += self.testcase_name
+        self.comp_result_path += "comp_" + self.testcase_name
+        if len(self.define_info_used_in_log_file_name) != 0:
+            self.sim_result_path += self.define_info_used_in_log_file_name
+            self.comp_result_path += self.define_info_used_in_log_file_name
+        self.sim_result_path += '_' + self.seed_from_user + '/'
+        # self.comp_result_path += '_' + self.seed_from_user + '/'
+        self.comp_result_path += '/'
+
+        if not os.path.exists(self.sim_result_path):
+            os.makedirs(self.sim_result_path)
+        if not os.path.exists(self.comp_result_path):
+            os.makedirs(self.comp_result_path)
+
+    def set_temporary_environment_path(self):
+        setenv_dict = {}
+        # default set_env
+        self.set_env_file_path = "../setup/set_env.csh"
+        for key in self.m_parse_yaml_file.set_env_dict:
+            if 'default' in key:
+                self.set_env_file_path = self.m_parse_yaml_file.set_env_dict[key]
+                break
+        # special set_env
+        for key in self.m_parse_yaml_file.set_env_dict:
+            if key.upper() in self.define_from_m or key.upper() in self.define_from_user:
+                self.set_env_file_path = self.m_parse_yaml_file.set_env_dict[key]
+                break
+        setenv_dict = self.source_cshell(self.set_env_file_path)
+
+        self.run_time_config_info = "************************************************************************"
+        #for key in setenv_dict:
+        #    self.run_time_config_info += "\n$" + key + "  = " + setenv_dict[key]
+        self.run_time_config_info += "\n testcase_path          = " + self.testcase_file_path
+        self.run_time_config_info += "\n seed                   = " + self.seed_from_user
+        self.run_time_config_info += "\n define                 = " + self.define_from_user + "+" +  self.define_from_m
+        self.run_time_config_info += "\n plusargs               = " + self.addition_sim_args
+        if self.m_parse_yaml_file.is_mixed:
+            self.run_time_config_info += "\n VHDLAN_RTL filelist    = " + self.m_parse_yaml_file.pre_sim_duv_vhdl_flist
+        self.run_time_config_info += "\n VLOGAN_RTL filelist    = " + self.dut_filelist_name
+        self.run_time_config_info += "\n set_env                = " + self.set_env_file_path
+    def get_addition_sim_args(self, all_argvs):
+        plusargs = ''
+        for arg in all_argvs:
+            if arg.startswith("plusargs="):
+                plusargs = arg.split("plusargs=")[1]
+                plusargs = plusargs.split("+")
+                for plusarg in plusargs:
+                    self.addition_sim_args += " +" + plusarg
+        print(self.addition_sim_args)
+    def delete_useless_file(self):
+        self.run_command_on_shell('rm -rf csrc simv* ucli.key vc_hdrs.h novas.* 64 AN.DB verdiLog vmgr_db vhdl_objs_dir work.lib++ *.log map.rpt *.vdb *.vsofx')
+
+    def gen_ral(self):
+        self.run_command_on_shell('ral_gen_from_excel -i ../doc/register.xlsx -y ../doc/regsheet_format.yml -o ../ral')
+
+    def memmap_gen(self):
+        self.run_command_on_shell('memmapgen.py -i ../doc/register.xlsx -y ../doc/memmap.yml -o ../ral')
+
+    def io_value_chk_gen(self):
+        self.run_command_on_shell('io_value_chk_gen.py iolist.xlsx CS1795X')
+
+    def run_regression_command(self):
+        self.run_command_on_shell(self.m_parse_yaml_file.regression_cmd)
+    def analysis_coverage(self):
+        coverage_database_path = "../coverage/coverage.vdb"
+        # check weather target path exists
+        if os.path.exists(coverage_database_path) == False:
+            PubFunc.exit_err("%s not exists" % coverage_database_path)
+        # delete useless soft link file
+        file_list = os.listdir(coverage_database_path)
+        for index in range(0, len(file_list)):
+            file_path = os.path.join(coverage_database_path, file_list[index])
+            if os.path.exists(os.path.realpath(file_path)) == False:
+                os.remove(file_path)
+        # delete old merged-coverage result
+        if os.path.exists(os.path.join(coverage_database_path, 'merged.vdb')) == True:
+            shutil.rmtree(os.path.join(coverage_database_path, 'merged.vdb'))
+        coverage_analysis_command = ''' \
+cd ../coverage/coverage.vdb
+urg -dir *.vdb -dbname merged.vdb
+''' + self.m_parse_yaml_file.lsf_args + ''' verdi -cov -covdir merged.vdb &'''
+        self.run_command_on_shell(coverage_analysis_command)
+    def open_verdi_by_compile(self):
+        verdi_command_prefix = "%s " % (self.m_parse_yaml_file.lsf_args)
+        work_suffix = ""
+        if self.command_type == "verdi_post":
+            work_suffix += "_post"
+        elif self.command_type == "verdi_pa":
+            work_suffix += "_pa"
+        elif self.command_type == "verdi_mix":
+            work_suffix += "_mix"
+        elif self.command_type == "verdi_mix_post":
+            work_suffix += "_mix_post"
+            # ====== vhdlcom_command ======
+        vhdlcom_command = verdi_command_prefix + "vhdlcom "
+        vhdlcom_command += "-f %s " % self.m_parse_yaml_file.pre_sim_duv_vhdl_flist
+        vhdlcom_command += "+define+%s%s" %(self.define_from_user, self.define_from_m)
+        #vhdlcom_command += "%s " % self.define_usr_macros
+        vhdlcom_command += " -logdir %svhdlcomLog%s " % (self.comp_result_path, work_suffix)
+        vhdlcom_command += "-work %sverdi_work%s " % (self.comp_result_path, work_suffix)
+        self.run_command_on_shell(vhdlcom_command)
+
+        # ====== vericom_command ======
+        vericom_command = verdi_command_prefix +  "vericom "
+        vericom_command += "-sv -ssv -ssy -ssz +libext+.sv+.v -ntb_opts uvm-1.1 "
+
+        vericom_command += "-f %s " % self.dut_filelist_name
+        vericom_command += "-f ../filelist/tb_filelist.f "
+        vericom_command += "-logdir %svericomLog%s " % (self.comp_result_path, work_suffix)
+        vericom_command += "+define+%s%s" %(self.define_from_user, self.define_from_m)
+        vericom_command += " -work %sverdi_work%s " % (self.comp_result_path, work_suffix)
+        self.run_command_on_shell(vericom_command)
+
+        # ====== elabcom_command ======
+        elabcom_command = verdi_command_prefix +  "elabcom "
+        elabcom_command += "-top top "
+        elabcom_command += "-logdir %selabcomLog%s " % (self.comp_result_path, work_suffix)
+        elabcom_command += "-lib %sverdi_work%s " % (self.comp_result_path, work_suffix)
+        elabcom_command += "-elab %sverdi_kdb%s " % (self.comp_result_path, work_suffix)
+        self.run_command_on_shell(elabcom_command)
+
+        # ====== verdi_command ======
+        verdi_command = verdi_command_prefix +  "verdi "
+        verdi_command += "-elab %sverdi_kdb%s.elab++ " % (self.comp_result_path, work_suffix)
+        if self.command_type == "verdi_pa":
+            verdi_command += "-upf %s " % self.m_parse_yaml_file.upf_file_path
+        verdi_command += "-nologo &"
+        self.run_command_on_shell(verdi_command)
+
+    def open_verdi_by_test_log_name(self):
+        test_log_name=argv2.split('.log')[0]
+        verdi_command = "%s verdi " % self.m_parse_yaml_file.lsf_args
+
+        verdi_command += "-top top "
+        verdi_command += "-ssf %s_000.fsdb " % test_log_name
+        verdi_command += "-nologo &"
+        self.run_command_on_shell(verdi_command)    #mod by gaojiang
+
+    def open_verdi_by_filelist(self):
+        verdi_command = "%s verdi " % self.m_parse_yaml_file.lsf_args
+
+        verdi_command += "-top top "
+
+        verdi_command += "-sv -ssv -ssy -ssz +libext+.sv+.v -ntb_opts uvm-1.1 "
+
+        verdi_command += "-f %s " % self.dut_filelist_name
+        verdi_command += "-f ../filelist/tb_filelist.f "
+
+        verdi_command += "+define+%s%s" %(self.define_from_user, self.define_from_m)
+
+
+        if "PA_SIM" in self.define_from_m or 'PA_SIM' in self.define_from_user:
+            verdi_command += " -upf %s -preTitle PA_SIM " % self.m_parse_yaml_file.upf_file_path
+
+        verdi_command += " -nologo &"
+
+        self.run_command_on_shell(verdi_command)
+
+    def open_verdi(self):
+        if self.m_parse_yaml_file.is_mixed:
+            self.open_verdi_by_compile()
+        else:
+            if len(argv2) !=0 and "define=" not in argv2:
+                self.open_verdi_by_test_log_name()  #mod by gaojiang
+            else:
+                self.open_verdi_by_filelist()
+
+    def get_sdf_annotate_log(self):
+        files = os.listdir("./")
+        file_list = []
+        for currentfile in files:
+            if os.path.isfile(currentfile):
+                matchfile = re.match(r'sdf\w+', currentfile)
+                if matchfile and currentfile.endswith(".log"):
+                    file_list.append(currentfile)
+                    self.sdf_annotate_log_file_path.append("./%s" %(currentfile))
+
+    def set_test_comp_sim_name(self):
+        define_from_m_info = self.define_from_m.split('+')[0]
+
+        if "PRE_SIM" in self.define_from_m:
+            self.comp_test_name = self.testcase_name + self.define_info_used_in_log_file_name
+        else:
+            self.comp_test_name = self.testcase_name + self.define_info_used_in_log_file_name + '_'+ define_from_m_info
+
+        self.vhdlan_log_file_path = "%svhdlan_%s.log" % (self.comp_result_path, self.comp_test_name)
+        self.vlogan_log_file_path = "%svlogan_%s.log" % (self.comp_result_path, self.comp_test_name)
+        self.elab_log_file_path = "%selab_%s.log" % (self.comp_result_path, self.comp_test_name)
+        self.comp_log_file_path = "%scomp_%s.log" % (self.comp_result_path, self.comp_test_name)
+        self.simv_file_path = "%ssimv_%s" % (self.comp_result_path, self.comp_test_name)
+        self.fsdb_waveform_file_name = self.comp_test_name + '_' + self.seed_from_user + '.fsdb'
+        self.vcd_waveform_file_name  = self.comp_test_name + '_' + self.seed_from_user + '.vcd'
+        self.log_file_name           = self.comp_test_name + '_' + self.seed_from_user + '.log'
+        self.sim_log_file_path       = "%s%s" %(self.sim_result_path,self.log_file_name)
+
+    def check_hw_compile_error(self, log_file_path):
+        log_file = open(log_file_path, "r")
+        log_line = log_file.readline()
+        while log_line:
+            log_line = log_line.strip()
+            matchError = re.match(r'Error-\[', log_line)
+            if matchError:
+                self.gen_comp_log_file()
+                print("********************* Log Files ****************************************")
+                print("comp_log : %s" % self.comp_log_file_path)
+                print("************************************************************************")
+                PubFunc.exit_err("VCS Compile Error!\n")
+            log_line = log_file.readline()
+
+    def check_hw_compile_error_with_cleanup(self, log_file_path, cleanup_dir=None):
+        log_file = open(log_file_path, "r")
+        log_line = log_file.readline()
+        while log_line:
+            log_line = log_line.strip()
+            matchError = re.match(r'Error-\[', log_line)
+            if matchError:
+                log_file.close()
+                if cleanup_dir and os.path.exists(cleanup_dir):
+                    print("[INCR] Elaboration failed, removing tb_pkg for next full compile...")
+                    shutil.rmtree(cleanup_dir, ignore_errors=True)
+                self.gen_comp_log_file()
+                print("********************* Log Files ****************************************")
+                print("comp_log : %s" % self.comp_log_file_path)
+                print("************************************************************************")
+                PubFunc.exit_err("VCS Compile Error!\n")
+            log_line = log_file.readline()
+        log_file.close()
+
+    def check_sdf_annotate_error(self, log_file_path):
+        log_file = open(log_file_path, "r")
+        log_line = log_file.readline()
+        while log_line:
+            log_line = log_line.strip()
+            matchline = re.match(r'Total errors', log_line)
+            if matchline:
+                matchnum = re.findall(r'\d+', log_line)
+                if '0' not in matchnum:
+                    print("********************* Log Files ****************************************")
+                    print("annotate_log : %s" % log_file_path)
+                    print("************************************************************************")
+                    PubFunc.exit_err("Sdf Annotate Error!\n")
+            log_line = log_file.readline()
+    def gen_comp_log_file(self):
+        gen_comp_log_file_command = "cat "
+        if os.path.isfile(self.vhdlan_log_file_path):
+            gen_comp_log_file_command += "%s " % self.vhdlan_log_file_path
+        if os.path.isfile(self.vlogan_log_file_path):
+            gen_comp_log_file_command += "%s " % self.vlogan_log_file_path
+        if os.path.isfile(self.elab_log_file_path):
+            gen_comp_log_file_command += "%s " % self.elab_log_file_path
+        gen_comp_log_file_command += "> %s" % self.comp_log_file_path
+        self.run_command_on_shell(gen_comp_log_file_command)
+    def execute_vhdlan_command(self):
+        content_sv_opt=''
+        content_sv_opt += "+define+%s%s " % (self.define_from_m, self.define_from_user)
+        self.vhdlan_log_file_path = "%svhdlan_%s.log" % (self.comp_result_path, self.comp_test_name)
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vhdlan_command = "%s vhdlan " % (self.m_parse_yaml_file.mixsim_lsf_args)
+        else:
+            vhdlan_command = "%s vhdlan " % (self.m_parse_yaml_file.lsf_args)
+
+        vhdlan_command += "%s " % self.m_parse_yaml_file.vhdlan_default_comp_args
+
+        vhdlan_command += "-f %s " % self.m_parse_yaml_file.pre_sim_duv_vhdl_flist
+        vhdlan_command += "-sva -sv_opts \"%s \" " %(content_sv_opt)
+        vhdlan_command += "-l %s " % self.vhdlan_log_file_path
+
+        self.run_command_on_shell(vhdlan_command)
+
+    def execute_vhdlan_rtl_command(self):
+        self.vhdl_filelist_name = self.get_vendor_ip_vhdl_filelist()
+        if not self.vhdl_filelist_name or not os.path.exists(self.vhdl_filelist_name):
+            self.need_vhdl_compile = False
+            print("[INCR] No VHDL filelist found, skipping VHDL compilation")
+            return
+        rtl_pkg_dir = self.rtl_shared_pkg_dir
+        if not os.path.exists(rtl_pkg_dir):
+            os.makedirs(rtl_pkg_dir)
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vhdlan_command = "%s vhdlan " % (self.m_parse_yaml_file.mixsim_lsf_args)
+        else:
+            vhdlan_command = "%s vhdlan " % (self.m_parse_yaml_file.lsf_args)
+        vhdlan_command += "%s " % self.m_parse_yaml_file.vhdlan_default_comp_args
+        vhdlan_command += "-Mdir=%s " % rtl_pkg_dir
+        vhdlan_command += "-f %s " % self.vhdl_filelist_name
+        vhdlan_command += "-l " + self.comp_result_path + "vhdlan_rtl.log"
+        print("[INCR] Compiling VHDL RTL to shared dir: %s" % rtl_pkg_dir)
+        self.run_command_on_shell(vhdlan_command)
+        self.need_vhdl_compile = True
+
+    def get_vendor_ip_vhdl_filelist(self):
+        vendor_ip = self.m_parse_yaml_file.vendor_ip_config
+        if vendor_ip and 'vhdl_src_filelist' in vendor_ip and vendor_ip['vhdl_src_filelist']:
+            return vendor_ip['vhdl_src_filelist']
+        return ''
+
+    def get_vendor_ip_precompiled_libs(self):
+        vendor_ip = self.m_parse_yaml_file.vendor_ip_config
+        if vendor_ip and 'precompiled_libs' in vendor_ip and vendor_ip['precompiled_libs']:
+            return vendor_ip['precompiled_libs']
+        return {}
+
+    def copy_precompiled_libs(self):
+        precompiled_libs = self.get_vendor_ip_precompiled_libs()
+        if not precompiled_libs:
+            return
+        for lib_name, lib_path in precompiled_libs.items():
+            dest_path = os.path.join(self.rtl_shared_pkg_dir, lib_name)
+            if os.path.exists(lib_path):
+                if not os.path.exists(dest_path):
+                    shutil.copytree(lib_path, dest_path)
+                    print("[INCR] Copied precompiled lib: %s -> %s" % (lib_name, dest_path))
+            else:
+                print("[INCR] Warning: precompiled lib not found: %s" % lib_path)
+
+    def generate_synopsys_sim_setup(self):
+        setup_file = os.path.join(self.rtl_shared_pkg_dir, 'synopsys_sim.setup')
+        precompiled_libs = self.get_vendor_ip_precompiled_libs()
+        with open(setup_file, 'w') as f:
+            f.write("WORK > DEFAULT\n")
+            for lib_name in precompiled_libs.keys():
+                f.write("DEFINE %s ./%s\n" % (lib_name, lib_name))
+        print("[INCR] Generated synopsys_sim.setup in %s" % self.rtl_shared_pkg_dir)
+    def execute_vlogan_command(self):
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vlogan_command= "%s vlogan " % (self.m_parse_yaml_file.mixsim_lsf_args)
+        else:
+            vlogan_command= "%s vlogan " % (self.m_parse_yaml_file.lsf_args)
+
+        vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_default_comp_args
+        vlogan_command += "-Mdir=%s " % self.comp_result_path
+
+        if 'POST_SIM_ON' in self.define_from_m or 'POST_SIM_ON' in self.define_from_user:
+            vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_only_post_comp_args
+        else:
+            vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_only_pre_comp_args
+
+        vlogan_command += "+define+%s%s " % (self.define_from_m, self.define_from_user)
+        #--- is_pa ---
+        if "PA_SIM" in self.define_from_m or 'PA_SIM' in self.define_from_user:
+            if "PG_SIM" not in self.define_from_user:
+                vlogan_command += "-upf %s -power=force_priority " % self.m_parse_yaml_file.upf_file_path
+        # analysis uvm before analysis flist
+        vlogan_command += "-f %s " %(self.dut_filelist_name)
+        vlogan_command += "-f ../filelist/tb_filelist.f "
+        vlogan_command += "%s " %(self.testcase_file_path)
+        vlogan_command += "-l " + self.vlogan_log_file_path
+        self.run_command_on_shell(vlogan_command)
+    def execute_vcs_compile_command(self):
+        is_pre_sim = 1
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vcs_compile_command = "%s vcs " % (self.m_parse_yaml_file.mixsim_lsf_args)
+        else:
+            vcs_compile_command = "%s vcs " % (self.m_parse_yaml_file.lsf_args)
+        vcs_compile_command += "%s " % self.m_parse_yaml_file.vcs_default_comp_args
+        if self.is_incr_compile_mode:
+            tb_pkg_dir = self.comp_result_path + 'tb_pkg/'
+            vcs_compile_command += "-Mdir=%s " % tb_pkg_dir
+            vcs_compile_command += "+libpath+%s " % self.rtl_shared_pkg_dir
+        else:
+            vcs_compile_command += "-Mdir=%s " % self.comp_result_path
+        if "NO_COVERAGE" not in self.define_from_user and self.is_regression() == True:
+            coverage_name = self.testcase_name + "_" + self.seed_from_user
+            vcs_compile_command += " -cm line+cond+fsm+tgl+branch+assert "
+            vcs_compile_command += " -cm_dir " + os.path.join(self.coverage_result_path, coverage_name) + " "
+            vcs_compile_command += " -cm_hier ../cfg/cm_hier.cfg "
+
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vcs_compile_command += " -Mdir=" + self.sim_result_path + " "
+            vcs_compile_command += " +ad=" + self.mix_sim_init_file_path + " "
+        if 'POST_SIM_ON' in self.define_from_m or 'POST_SIM_ON' in self.define_from_user:
+            is_pre_sim = 0
+            vcs_compile_command += "%s " % self.m_parse_yaml_file.vcs_only_post_comp_args
+            vcs_compile_command += "+optconfigfile+../cfg/notimingcheck.cfg "
+        if "PA_SIM" in self.define_from_m or 'PA_SIM' in self.define_from_user:
+            if "PG_SIM" not in self.define_from_user:
+                vcs_compile_command += "%s " %self.m_parse_yaml_file.vcs_pa_comp_args
+                vcs_compile_command += "-upf %s -power=force_priority " % self.m_parse_yaml_file.upf_file_path
+        if is_pre_sim == 1:
+            vcs_compile_command += "%s " % self.m_parse_yaml_file.vcs_only_pre_comp_args
+
+        if "XPROP_SIM" in self.define_from_m or 'XPROP_SIM' in self.define_from_user:
+            vcs_compile_command += "-xprop=../cfg/xprop.cfg "
+
+        vcs_compile_command += "-o %s " % (self.simv_file_path)
+        vcs_compile_command += "-top top "
+
+        if "COVERAGE_ON" not in self.define_from_user and (self.is_regression() == False or "NO_COVERAGE" in self.define_from_user):
+            if 'MIX_SIM' not in self.define_from_m and 'MIX_SIM' not in self.define_from_user:
+                vcs_compile_command += "-partcomp -fastpartcomp=j2 -partcomp=nomodautopart -pcmakeprof +optconfigfile+../cfg/partcomp.v "
+
+        vcs_compile_command += "-l " + self.elab_log_file_path
+
+        self.run_command_on_shell(vcs_compile_command)
+        print("********************* Log Files ****************************************")
+        print("comp_log : %s" % (self.comp_log_file_path))
+        print("************************************************************************")
+    def execute_compile_command(self):
+        if self.m_parse_yaml_file.is_mixed:
+            self.execute_vhdlan_command()
+            self.check_hw_compile_error(self.vhdlan_log_file_path)
+        self.execute_vlogan_command()
+        self.check_hw_compile_error(self.vlogan_log_file_path)
+        self.execute_vcs_compile_command()
+        self.check_hw_compile_error(self.elab_log_file_path)
+        if 'POST_SIM' in self.define_from_m or 'POST_SIM' in self.define_from_user:
+            for sdf_log_file in self.sdf_annotate_log_file_path:
+                self.check_sdf_annotate_error(sdf_log_file)
+        self.gen_comp_log_file()
+
+    def get_file_hash(self, file_path):
+        if not os.path.exists(file_path):
+            return None
+        try:
+            with open(file_path, 'rb') as f:
+                return hashlib.md5(f.read()).hexdigest()
+        except:
+            return None
+
+    def get_files_from_filelist(self, filelist_path):
+        files = []
+        if not filelist_path or not os.path.exists(filelist_path):
+            return files
+        with open(filelist_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('//') and not line.startswith('+') and not line.startswith('#'):
+                    if line.endswith('.sv') or line.endswith('.v') or line.endswith('.svh') or line.endswith('.vh') or line.endswith('.vhd') or line.endswith('.vhdl'):
+                        files.append(os.path.normpath(os.path.join(os.path.dirname(filelist_path), line)))
+        return files
+
+    def load_compile_cache(self):
+        if os.path.exists(self.incr_cache_file):
+            try:
+                with open(self.incr_cache_file, 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+
+    def save_compile_cache(self, cache_data):
+        cache_dir = os.path.dirname(self.incr_cache_file)
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+        with open(self.incr_cache_file, 'w') as f:
+            json.dump(cache_data, f, indent=2)
+
+    def load_tb_compile_cache(self):
+        tb_cache_file = os.path.join(self.comp_result_path, 'incr_compile_cache.json')
+        if os.path.exists(tb_cache_file):
+            try:
+                with open(tb_cache_file, 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+
+    def save_tb_compile_cache(self, cache_data):
+        tb_cache_file = os.path.join(self.comp_result_path, 'incr_compile_cache.json')
+        if not os.path.exists(self.comp_result_path):
+            os.makedirs(self.comp_result_path)
+        with open(tb_cache_file, 'w') as f:
+            json.dump(cache_data, f, indent=2)
+
+    def check_rtl_modified(self):
+        cache = self.load_compile_cache()
+        self.vhdl_filelist_name = self.get_vendor_ip_vhdl_filelist()
+        verilog_files = self.get_files_from_filelist(self.dut_filelist_name)
+        vhdl_files = self.get_files_from_filelist(self.vhdl_filelist_name)
+        current_hashes = {}
+        current_hashes['verilog'] = {}
+        current_hashes['vhdl'] = {}
+        for f in verilog_files:
+            h = self.get_file_hash(f)
+            if h:
+                current_hashes['verilog'][f] = h
+        for f in vhdl_files:
+            h = self.get_file_hash(f)
+            if h:
+                current_hashes['vhdl'][f] = h
+        if self.RTL_SHARED_CACHE_KEY not in cache:
+            cache[self.RTL_SHARED_CACHE_KEY] = {}
+        cached_hashes = cache[self.RTL_SHARED_CACHE_KEY].get('rtl', {})
+        if cached_hashes != current_hashes:
+            self.rtl_modified = True
+            cache[self.RTL_SHARED_CACHE_KEY]['rtl'] = current_hashes
+            self.save_compile_cache(cache)
+            print("[INCR] RTL files modified, need recompile RTL")
+        else:
+            self.rtl_modified = False
+            print("[INCR] RTL files unchanged")
+
+    def check_tb_modified(self):
+        cache = self.load_tb_compile_cache()
+        tb_files = self.get_files_from_filelist('../filelist/tb_filelist.f')
+        tb_files.append(self.testcase_file_path)
+        current_hashes = {}
+        for f in tb_files:
+            h = self.get_file_hash(f)
+            if h:
+                current_hashes[f] = h
+        cached_hashes = cache.get('tb', {})
+        if cached_hashes != current_hashes:
+            self.tb_modified = True
+            cache['tb'] = current_hashes
+            self.save_tb_compile_cache(cache)
+            print("[INCR] TB files modified, need recompile TB")
+        else:
+            self.tb_modified = False
+            print("[INCR] TB files unchanged")
+
+    def execute_vlogan_rtl_command(self):
+        rtl_pkg_dir = self.rtl_shared_pkg_dir
+        if not os.path.exists(rtl_pkg_dir):
+            os.makedirs(rtl_pkg_dir)
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vlogan_command = "%s vlogan " % (self.m_parse_yaml_file.mixsim_lsf_args)
+        else:
+            vlogan_command = "%s vlogan " % (self.m_parse_yaml_file.lsf_args)
+        vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_default_comp_args
+        vlogan_command += "-Mdir=%s " % rtl_pkg_dir
+        if 'POST_SIM_ON' in self.define_from_m or 'POST_SIM_ON' in self.define_from_user:
+            vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_only_post_comp_args
+        else:
+            vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_only_pre_comp_args
+        vlogan_command += "+define+%s%s " % (self.define_from_m, self.define_from_user)
+        vlogan_command += "-f %s " % (self.dut_filelist_name)
+        vlogan_command += "-l " + self.comp_result_path + "vlogan_rtl.log"
+        print("[INCR] Compiling Verilog RTL to shared dir: %s" % rtl_pkg_dir)
+        ret = self.run_command_on_shell_with_return(vlogan_command)
+        if ret != 0:
+            print("[INCR] Verilog RTL compilation failed, removing rtl_pkg_shared directory...")
+            shutil.rmtree(rtl_pkg_dir, ignore_errors=True)
+            return False
+        marker_file = os.path.join(rtl_pkg_dir, '.rtl_compiled')
+        with open(marker_file, 'w') as f:
+            f.write('RTL compiled at %s\n' % self.define_from_user)
+        return True
+
+    def execute_vlogan_tb_command(self):
+        tb_pkg_dir = self.comp_result_path + 'tb_pkg/'
+        if not os.path.exists(tb_pkg_dir):
+            os.makedirs(tb_pkg_dir)
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vlogan_command = "%s vlogan " % (self.m_parse_yaml_file.mixsim_lsf_args)
+        else:
+            vlogan_command = "%s vlogan " % (self.m_parse_yaml_file.lsf_args)
+        vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_default_comp_args
+        vlogan_command += "-Mdir=%s " % tb_pkg_dir
+        if 'POST_SIM_ON' in self.define_from_m or 'POST_SIM_ON' in self.define_from_user:
+            vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_only_post_comp_args
+        else:
+            vlogan_command += "%s " % self.m_parse_yaml_file.vlogan_only_pre_comp_args
+        vlogan_command += "+define+%s%s " % (self.define_from_m, self.define_from_user)
+        vlogan_command += "-f ../filelist/tb_filelist.f "
+        vlogan_command += "%s " % (self.testcase_file_path)
+        vlogan_command += "-l " + self.comp_result_path + "vlogan_tb.log"
+        print("[INCR] Compiling TB package...")
+        ret = self.run_command_on_shell_with_return(vlogan_command)
+        if ret != 0:
+            print("[INCR] TB compilation failed, removing tb_pkg directory...")
+            shutil.rmtree(tb_pkg_dir, ignore_errors=True)
+            return False
+        return True
+
+    def execute_incremental_compile_command(self):
+        self.is_incr_compile_mode = True
+        self.incr_cache_key = self.testcase_name + self.define_info_used_in_log_file_name
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            self.rtl_shared_pkg_dir = './comp_result/mixsim/rtl_pkg_shared/'
+            comp_base_dir = './comp_result/mixsim/'
+        elif 'PA_SIM' in self.define_from_m or 'PA_SIM' in self.define_from_user:
+            self.rtl_shared_pkg_dir = './comp_result/pasim/rtl_pkg_shared/'
+            comp_base_dir = './comp_result/pasim/'
+        elif 'POST_SIM_ON' in self.define_from_m or 'POST_SIM_ON' in self.define_from_user:
+            self.rtl_shared_pkg_dir = './comp_result/postsim/rtl_pkg_shared/'
+            comp_base_dir = './comp_result/postsim/'
+        else:
+            self.rtl_shared_pkg_dir = './comp_result/presim/rtl_pkg_shared/'
+            comp_base_dir = './comp_result/presim/'
+        self.vhdl_filelist_name = self.get_vendor_ip_vhdl_filelist()
+        self.check_rtl_modified()
+        self.check_tb_modified()
+        tb_pkg_dir = self.comp_result_path + 'tb_pkg/'
+        rtl_marker = os.path.join(self.rtl_shared_pkg_dir, '.rtl_compiled')
+        rtl_pkg_exists = os.path.exists(rtl_marker)
+        tb_pkg_exists = os.path.exists(tb_pkg_dir)
+        
+        need_full_compile = False
+        if not rtl_pkg_exists or not tb_pkg_exists:
+            need_full_compile = True
+            print("[INCR] Package not found, doing full compile...")
+        if self.rtl_modified:
+            print("[INCR] RTL modified, clearing all TB packages for full recompile...")
+            self.clear_all_tb_packages(comp_base_dir)
+            need_full_compile = True
+        
+        if need_full_compile:
+            self.execute_vhdlan_rtl_command()
+            self.copy_precompiled_libs()
+            self.generate_synopsys_sim_setup()
+            if not self.execute_vlogan_rtl_command():
+                PubFunc.exit_err("[INCR] Verilog RTL compilation failed, please check errors")
+            if not self.execute_vlogan_tb_command():
+                PubFunc.exit_err("[INCR] TB compilation failed, please check errors")
+        else:
+            if self.tb_modified:
+                if not self.execute_vlogan_tb_command():
+                    PubFunc.exit_err("[INCR] TB compilation failed, please check errors")
+            if not self.rtl_modified and not self.tb_modified:
+                print("[INCR] No files modified, skip vlogan compile")
+        
+        self.execute_vcs_compile_command()
+        self.check_hw_compile_error_with_cleanup(self.elab_log_file_path, tb_pkg_dir)
+        if 'POST_SIM' in self.define_from_m or 'POST_SIM' in self.define_from_user:
+            for sdf_log_file in self.sdf_annotate_log_file_path:
+                self.check_sdf_annotate_error(sdf_log_file)
+        self.gen_comp_log_file()
+        self.is_incr_compile_mode = False
+
+    def clear_all_tb_packages(self, comp_base_dir):
+        if not os.path.exists(comp_base_dir):
+            return
+        for item in os.listdir(comp_base_dir):
+            item_path = os.path.join(comp_base_dir, item)
+            if os.path.isdir(item_path) and item.startswith('comp_'):
+                tb_pkg_path = os.path.join(item_path, 'tb_pkg')
+                if os.path.exists(tb_pkg_path):
+                    shutil.rmtree(tb_pkg_path)
+                    print("[INCR] Cleared TB package: %s" % tb_pkg_path)
+
+    def execute_compile_rtl_only(self):
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            self.rtl_shared_pkg_dir = './comp_result/mixsim/rtl_pkg_shared/'
+        elif 'PA_SIM' in self.define_from_m or 'PA_SIM' in self.define_from_user:
+            self.rtl_shared_pkg_dir = './comp_result/pasim/rtl_pkg_shared/'
+        elif 'POST_SIM_ON' in self.define_from_m or 'POST_SIM_ON' in self.define_from_user:
+            self.rtl_shared_pkg_dir = './comp_result/postsim/rtl_pkg_shared/'
+        else:
+            self.rtl_shared_pkg_dir = './comp_result/presim/rtl_pkg_shared/'
+        self.vhdl_filelist_name = self.get_vendor_ip_vhdl_filelist()
+        self.execute_vhdlan_rtl_command()
+        self.copy_precompiled_libs()
+        self.generate_synopsys_sim_setup()
+        self.execute_vlogan_rtl_command()
+        rtl_log = self.comp_result_path + "vlogan_rtl.log"
+        self.check_hw_compile_error(rtl_log)
+        print("[INCR] RTL compile done")
+
+    def execute_compile_tb_only(self):
+        self.execute_vlogan_tb_command()
+        tb_log = self.comp_result_path + "vlogan_tb.log"
+        self.check_hw_compile_error(tb_log)
+        print("[INCR] TB compile done")
+
+    def execute_simulation_command(self):
+        vcs_simulation_command = ''
+
+        if 'MIX_SIM' in self.define_from_m or 'MIX_SIM' in self.define_from_user:
+            vcs_sim_command= "%s " % (self.m_parse_yaml_file.mixsim_lsf_args)
+        else:
+            vcs_sim_command= "%s " % (self.m_parse_yaml_file.lsf_args)
+
+        if os.path.exists(self.simv_file_path) == False:
+            PubFunc.exit_err("%s is not exists" % self.simv_file_path)
+
+        vcs_sim_command += "%s " % (self.simv_file_path)
+        vcs_sim_command += "%s " % self.m_parse_yaml_file.vcs_default_sim_args
+        vcs_sim_command += "%s " % self.addition_sim_args
+        vcs_sim_command += "+ntb_random_seed=%s " % self.seed_from_user
+        vcs_sim_command += "+UVM_TESTNAME=%s " % self.testcase_name
+        vcs_sim_command += "-l %s " % (self.sim_log_file_path)
+
+        if self.is_regression() == True and ("NO_COVERAGE" not in self.define_from_user or "COVERAGE_ON" in self.define_from_user):
+            coverage_name = self.testcase_name + "_" + self.seed_from_user
+            vcs_sim_command += " -cm line+cond+fsm+tgl+branch+assert "
+            vcs_sim_command += " -cm_dir " + os.path.join(self.coverage_result_path, coverage_name) + " "
+            vcs_sim_command += " -cm_name " + coverage_name + " "
+
+
+        #if len(self.test_c_files_path) > 0:
+        #    vcs_sim_command += "+HEXFILE_PROC0=%s.hex " % self.test_name
+
+        if "XPROP_SIM" in self.define_from_m or 'XPROP_SIM' in self.define_from_user:
+            vcs_sim_command += "-xprop=../cfg/xprop.cfg "
+
+        if 'VCD_DUMP_ON' in self.define_from_m or 'VCD_DUMP_ON' in self.define_from_user:
+            vcs_sim_command += "+plusargs_save +vcd_file=%s " % (self.sim_result_path + self.vcd_waveform_file_name)
+        else:
+            vcs_sim_command += "+plusargs_save +fsdb_file=%s " % (self.sim_result_path + self.fsdb_waveform_file_name)
+
+        vcs_sim_command += "+define+%s%s " % (self.define_from_m, self.define_from_user)
+
+        if "PA_SIM" in self.define_from_m or 'PA_SIM' in self.define_from_user:
+            if "PG_SIM" not in self.define_from_user:
+                vcs_sim_command += "-power %s " % self.m_parse_yaml_file.upf_cfg_path
+
+        self.run_command_on_shell(vcs_sim_command)
+        self.run_command_on_shell('rm -rf csrc simv* ucli.key vc_hdrs.h novas.* 64 AN.DB vmgr_db vhdl_objs_dir work.lib++ map.rpt *.vdb *.vsofx sdfAnnotateInfo')
+
+        print(self.run_time_config_info)
+        print("********************* Log Files ****************************************")
+        print("comp_log : %s" % (self.comp_log_file_path))
+        print("simulation : %s" %(self.sim_log_file_path))
+        print("************************************************************************")
+
+    def collect_timing_violation(self):
+        violation_case_count = 0
+        violation_count = 0
+        # delete old vio.rpt
+        if os.path.exists('vio.rpt') != False:
+            self.run_command_on_shell('rm -i vio.rpt')
+        # set default log path if not set
+        if len(self.target_path_for_timing_violation) == 0:
+            self.target_path_for_timing_violation = '../regression/result/'
+        if len(self.violation_report_start_time) == 0:
+            self.violation_report_start_time = 2600000000 #2.6ms;
+        # check whether target path exists
+        if os.path.exists(self.target_path_for_timing_violation) == False:
+            PubFunc.exit_err("%s is not exists" % self.target_path_for_timing_violation)
+        self.violation_report_file_handler = open(self.violation_report_file_name, 'w')
+        # find all *.log files in target path
+
+        temp_regr_result_list = os.listdir(self.target_path_for_timing_violation)
+        regr_result_list       = []
+        string_target_vio_path = ""
+        for index in temp_regr_result_list:
+            if not (os.path.isdir(self.target_path_for_timing_violation+index)):
+                temp_regr_result_list.remove(index)
+        for index in temp_regr_result_list:
+            if "corner" in str(index):
+                regr_result_list.append(self.target_path_for_timing_violation+index)
+        string_target_vio_path = ' '.join(regr_result_list)
+
+        self.run_command_on_shell('find ' + string_target_vio_path + ' -name "*local_log.log" > temp_log_files.txt')
+        temp_log_files_handler = open('temp_log_files.txt','r')
+        # iterate all log files found
+        log_files = temp_log_files_handler.readlines()
+        for log_file_index in log_files:
+            log_file_index = log_file_index.replace(' ','')
+            log_file_index = log_file_index.replace('\n','')
+            line_count = 0
+            testcase_name = 'NULL'
+            testcase_seed = 'NULL'
+            vio_list = []
+            violation_count_in_current_log = 0
+            for index,line in enumerate(open(log_file_index, 'r')):
+                line_count += 1
+            next_line_index = 0
+            while next_line_index <= line_count:
+                next_line_index += 1
+                line = linecache.getline(log_file_index, next_line_index)
+                if testcase_name == 'NULL':
+                    testcase_match = re.findall(r'TESTNAME\s*=\s*\w+', line)
+                    if len(testcase_match) != 0:
+                        testcase_name = testcase_match[0]
+                if testcase_seed == 'NULL':
+                    case_seed_match = re.findall(r'seed\s*=\s*\-*\w+', line)
+                    if len(case_seed_match) != 0:
+                        testcase_seed = case_seed_match[0]
+
+                vio_list = re.findall(r'^.*(Timing\s*violation.*$)', line)
+                if len(vio_list) == 0:
+                    continue
+
+                # get vilation time
+                next_line_index += 1
+                if next_line_index > line_count:
+                    break
+                violation_info_line = linecache.getline(log_file_index, next_line_index)
+
+                violation_info_line = re.sub(r'\s+', '', violation_info_line)
+                violation_time = []
+                violation_time = re.findall('\d+',violation_info_line)
+                violation_time = [int(x) for x in violation_time]
+                if max(violation_time) < int(self.violation_report_start_time):
+                    continue
+
+                violation_count_in_current_log += 1
+                if violation_count_in_current_log == 1:
+                    self.violation_report_file_handler.write('=======================================================\n')
+                    self.violation_report_file_handler.write(log_file_index+ '\n' + testcase_name + '\n' + testcase_seed + '\n\n')
+                self.violation_report_file_handler.write(vio_list[0] + '\n')
+                self.violation_report_file_handler.write('\t' + line + '\n')
+                self.violation_report_file_handler.write('\t' + violation_info_line+ '\n\n')
+            violation_count += violation_count_in_current_log
+            if violation_count_in_current_log != 0:
+                violation_case_count += 1
+        self.violation_report_file_handler.close()
+        self.run_command_on_shell('rm -rf temp_log_files.txt')
+        print("******************************************************")
+        print("testcases count : %s" % violation_case_count)
+        print("violation count : %s" % violation_count)
+        print("report file     : %s" % self.violation_report_file_name)
+        print("******************************************************")
+    def execute_user_make_command(self, all_argvs):
+        make_command = ''
+        for index in range(len(all_argvs)):
+            if index == 0:
+                continue
+            make_command += all_argvs[index] + ' '
+
+        os.chdir("../ccode/")
+        result = self.run_command_on_shell_with_return(make_command)
+        if result != 0:
+            PubFunc.exit_err("C Compile Error!!!\n")
+        os.chdir("../sim/")
+
+    def execute_basic_auto_make_command(self, ccode_file_path_list):
+        define_pattern  = re.compile(r'-define\+(\S+?)-')
+        define_from_sv  = self.define_from_user + "+" + self.define_from_m
+        ccode_file_name_list = []
+
+        for ccode_file_path in ccode_file_path_list:
+            ccode_file_name = ''
+            ccode_result_name = self.testcase_name
+            make_command = ''
+            make_options = ''
+
+            # ccode file info; used for .hex .elf .dis
+            if '/' in ccode_file_path:
+                ccode_file_name = ccode_file_path.split("/")[-1]
+            else:
+                ccode_file_name = ccode_file_path
+            ccode_file_name = ccode_file_name.split(".")[0]
+
+            # check if repeat ccode file name founded
+            if ccode_file_name in ccode_file_name_list:
+                PubFunc.print_err("Multiple ccode : %s founded!!!" % ccode_file_name)
+                PubFunc.print_err("\t%s" % ccode_file_path)
+                PubFunc.exit_err("\t%s" % ccode_file_path_list[ccode_file_name.index(ccode_file_name)])
+
+            ccode_file_name_list.append(ccode_file_name)
+
+            # delete "testcase_name" in ccode_file_name
+            if re.match(self.testcase_name, ccode_file_name) != None:
+                ccode_file_name = ccode_file_name.split(self.testcase_name)[1]
+            # delete 'main' in ccode_file_name
+            ccode_file_name = ccode_file_name.replace("main", "")
+            if len(ccode_file_name) != 0:
+                ccode_result_name += ccode_file_name
+
+            # get define for makefile
+            temp_define_list = re.findall(define_pattern, ccode_file_name)
+            define_from_ccode_file_name = ''
+            if len(temp_define_list) != 0:
+                define_from_ccode_file_name += temp_define_list[0]
+            define_from_ccode_file_name.replace(" ", "")
+            if len(define_from_ccode_file_name) == 0:
+                define_from_ccode_file_name = ''
+            else:
+                define_from_ccode_file_name = 'DEFINE=' + define_from_ccode_file_name
+
+            # get option for makefile
+            for opt in ccode_file_name.split("-"):
+                if '=' in opt:
+                    make_options += opt + ' '
+            make_command = self.m_parse_yaml_file.lsf_args + ' '
+
+            self.run_time_config_info += "\n ccode_file             = " + ccode_file_path
+
+            define_from_sv = define_from_sv.replace(" ", "")
+            # delete dummy define(null)
+            define_from_sv_list = define_from_sv.split("+")
+            define_from_sv = ''
+            for define in define_from_sv_list:
+                if len(define) != 0:
+                    define_from_sv += define + "+"
+
+            define_from_sv = define_from_sv.strip("+")
+
+            make_command += 'make TC=%s TC_SOURCE_FILE=%s %s SV_DEFINE=%s %s ' % \
+                        (ccode_result_name, ccode_file_path, define_from_ccode_file_name, define_from_sv, make_options)
+            os.chdir("../ccode/")
+            result = self.run_command_on_shell_with_return(make_command)
+            if result != 0:
+                PubFunc.exit_err("C Compile Error!!!\n")
+            os.chdir("../sim/")
+
+    def execute_auto_make_command_in_ccode_dir(self):
+        ccode_file_dir_path = os.path.dirname("../ccode/")
+        ccode_file_path_list = []
+
+        ccode_file_path_list = self.find_file_in_target_path(("%s*.c" % self.testcase_name), ccode_file_dir_path)
+        if len(ccode_file_path_list) == 0:
+            return False
+
+        self.execute_basic_auto_make_command(ccode_file_path_list)
+        return True
+
+    def execute_auto_make_command_in_tc_dir(self):
+        ccode_file_dir_path = os.path.dirname(self.testcase_file_path)
+        ccode_file_path_list = []
+
+        ccode_file_path_list = self.find_file_in_target_path("main*.c", ccode_file_dir_path, False)
+        if len(ccode_file_path_list) == 0:
+            return False
+
+        self.execute_basic_auto_make_command(ccode_file_path_list)
+        return True
+
+    def execute_auto_make_command(self):
+        if self.execute_auto_make_command_in_tc_dir() == True:
+            return
+        self.execute_auto_make_command_in_ccode_dir()
+
+    def source_cshell(self, source_file):
+        setenv_dict = {}
+        if os.path.exists(source_file) == False:
+            PubFunc.exit_err("No such file or directory : %s\n" % source_file)
+        command_to_run = '/bin/csh -c "source %s; env"' % source_file
+        pipe = subprocess.Popen(command_to_run, stdout=subprocess.PIPE, shell=True)
+        output = pipe.communicate()[0]
+        for line in output.splitlines():
+            line_decode = line.decode()
+            if len(line_decode.split("=")) > 1:
+                key, value = line.decode().split("=", 1)
+                os.environ.update({key : value})
+                setenv_dict[key] = value
+        return setenv_dict
+    def setup_temporary_synopsys_sim_setup(self):
+        file_name = "synopsys_sim.setup"
+        file_path = "%s/%s" % (self.comp_result_path, file_name)
+        is_user_setup_exists = 0
+
+        current_synopsys_sim_setup_file = os.environ.get("SYNOPSYS_SIM_SETUP", 'NULL')
+        if current_synopsys_sim_setup_file != 'NULL':
+            is_user_setup_exists = 1
+            if os.path.exists(current_synopsys_sim_setup_file) == False:
+                PubFunc.exit_err("No such file or directory : %s\n" % current_synopsys_sim_setup_file)
+            shutil.copy(current_synopsys_sim_setup_file, file_path)
+        else:
+            current_synopsys_sim_setup_file = os.path.dirname(os.path.abspath(__file__)) + "/synopsys_sim.setup"
+            if os.path.exists(current_synopsys_sim_setup_file) == True:
+                is_user_setup_exists = 1
+                shutil.copy("./synopsys_sim.setup", file_path)
+
+        if is_user_setup_exists == 0:
+            content = '''\nWORK > DEFAULT\nDEFAULT: ''' + self.comp_result_path
+        else:
+            content= ""
+            line_count = 0
+            next_line_index = 0
+            for index, line in enumerate(open(file_path, 'r')):
+                line_count += 1
+
+            while next_line_index <= line_count:
+                next_line_index += 1
+                orignal_line_content = linecache.getline(file_path, next_line_index)
+                line_content = orignal_line_content.replace(" ", "")
+                line_content = line_content.replace("\n", "")
+                line_content = line_content.replace("\t", "")
+                # exclude comment "--"
+                if re.match("^--.*$", line_content):
+                    content += orignal_line_content
+                    continue
+                if re.match("^.*:.*$", line_content):
+                    temp_path = line_content.split(":")[1]
+                    if "/" in temp_path:
+                        if not re.match("^\./.*$", temp_path):
+                            PubFunc.exit_err("path(%s) not supported in synopsys_sim.setup, only \"./\" supported \n" %
+                                    orignal_line_content.replace("\n", ""))
+                        temp_path = temp_path.split("/")[1]
+                    temp_path = os.path.join(self.comp_result_path, temp_path)
+
+                    content += orignal_line_content.split(":")[0] + ":" + temp_path + "\n"
+                    continue
+                content += orignal_line_content
+
+        file_handler = open(file_path, 'w')
+        file_handler.write(content)
+        file_handler.close()
+        os.environ["SYNOPSYS_SIM_SETUP"] = file_path
+    def is_regression(self, command_type='run'):
+        # vmanager
+        if os.environ.get("BRUN_SESSION_DIR", 'NULL') == 'NULL':
+            # not regression
+            self.comp_output_file_path = ''
+            self.sim_output_file_path = ''
+            return False
+
+        # regression
+        if command_type == 'run':
+            self.comp_output_file_path = os.environ.get("BRUN_RUN_DIR", 'NULL')
+        else:
+            self.comp_output_file_path = os.environ.get("BRUN_SESSION_DIR", 'NULL')
+
+        self.sim_output_file_path = os.environ.get("BRUN_RUN_DIR", 'NULL')
+        return True
+
+    def update_output_file_path(self):
+        self.presim_sim_result_path = os.path.join(self.sim_output_file_path, self.presim_sim_result_path)
+        self.postsim_sim_result_path = os.path.join(self.sim_output_file_path, self.postsim_sim_result_path)
+        self.pasim_sim_result_path = os.path.join(self.sim_output_file_path, self.pasim_sim_result_path)
+        self.mixsim_sim_result_path = os.path.join(self.sim_output_file_path, self.mixsim_sim_result_path)
+
+        self.presim_comp_result_path = os.path.join(self.comp_output_file_path, self.presim_comp_result_path)
+        self.postsim_comp_result_path = os.path.join(self.comp_output_file_path, self.postsim_comp_result_path)
+        self.pasim_comp_result_path = os.path.join(self.comp_output_file_path, self.pasim_comp_result_path)
+        self.mixsim_comp_result_path = os.path.join(self.comp_output_file_path, self.mixsim_comp_result_path)
+
+        self.coverage_result_path= self.sim_output_file_path
+
+    def run_command_from_user(self, argv1, argv2, argv3, argv4, argv5, argv6, argv7, all_argvs):
+        self.is_regression(argv1)
+        self.update_output_file_path()
+        self.m_parse_yaml_file.parse_info()
+        if self.is_regression() == True:
+            self.m_parse_yaml_file.lsf_args = ''
+        self.source_cshell("../setup/eda.csh")
+        self.analysis_command_from_user(argv1, argv2, argv3, argv4, argv5, argv6, argv7, all_argvs)
+        self.get_addition_sim_args(all_argvs)
+        self.set_temporary_environment_path()
+        self.set_test_comp_sim_name()
+        if 'run_make' in self.command_type:
+            self.execute_auto_make_command()
+        elif self.command_type == 'incr_run':
+            self.setup_temporary_synopsys_sim_setup()
+            self.execute_auto_make_command()
+            self.execute_incremental_compile_command()
+            self.execute_simulation_command()
+        elif self.command_type == 'comp_rtl':
+            self.setup_temporary_synopsys_sim_setup()
+            self.execute_compile_rtl_only()
+        elif self.command_type == 'comp_tb':
+            self.setup_temporary_synopsys_sim_setup()
+            self.execute_compile_tb_only()
+        elif 'run' in self.command_type or 'comp' in self.command_type:
+            self.setup_temporary_synopsys_sim_setup()
+            if '_mix' in self.command_type:
+                self.prepare_for_analog_and_digital_simulation()
+            self.execute_auto_make_command()
+            if re.match(r'^comp', self.command_type):
+                self.execute_compile_command()
+            elif 'nocomp_run' in self.command_type:
+                self.execute_simulation_command()
+            else:
+                self.execute_compile_command()
+                self.execute_simulation_command()
+        elif 'verdi' in self.command_type:
+            self.open_verdi()
+        elif 'cov' in self.command_type:
+            self.analysis_coverage()
+        elif 'regression' in self.command_type:
+            self.run_regression_command()
+            self.delete_useless_file()
+        elif 'clean' in self.command_type:
+            self.delete_useless_file()
+        elif 'ral' in self.command_type:
+            self.gen_ral()
+        elif 'memmap' in self.command_type:
+            self.memmap_gen()
+        elif 'vio' in self.command_type:
+            self.collect_timing_violation()
+        elif 'io' in self.command_type:
+            self.io_value_chk_gen()
+        elif 'make' in self.command_type:
+            self.execute_user_make_command(all_argvs)
+        else :
+            self.print_help_info()
+    def prepare_for_analog_and_digital_simulation(self):
+        temp_env_dict = dict()
+        temp_env_dict["SPICE_NAME"] = self.mix_sim_analog_file_path
+        temp_env_dict["CFG_NAME"] = self.mix_sim_cfg_file_path
+        temp_env_dict["INIT_FILE_PATH"] = self.mix_sim_init_file_path
+        temp_env_dict["LOG_NAME"] = self.sim_result_path + self.testcase_name +"/xa"
+
+        if os.path.isfile(temp_env_dict.get("SPICE_NAME")) == False:
+            PubFunc.exit_err("Spice file is not exist: %s" %temp_env_dict.get("SPICE_NAME"))
+        if os.path.isfile(temp_env_dict.get("CFG_NAME")) == False:
+            PubFunc.exit_err("XA CFG file is not exist: %s" % temp_env_dict.get("CFG_NAME"))
+        if os.path.isfile(temp_env_dict.get("INIT_FILE_PATH")) == False:
+            PubFunc.exit_err("XA init file is not exist: %s" % temp_env_dict.get("INIT_FILE_PATH"))
+
+        # set temporary environment variable for XA sim
+        os.environ["SPICE_NAME"] =  temp_env_dict.get("SPICE_NAME")
+        os.environ["CFG_NAME"] = temp_env_dict.get("CFG_NAME")
+        os.environ["LOG_NAME"] = temp_env_dict.get("LOG_NAME")
+
+        self.run_time_config_info += "\n\n spice_file	= " + temp_env_dict.get("SPICE_NAME")
+        self.run_time_config_info += "\n cfg_file	= " + temp_env_dict.get("CFG_NAME")
+        self.run_time_config_info += "\n init_file	= " + temp_env_dict.get("INIT_FILE_PATH")
+        self.run_time_config_info += "\n log_file	= " + temp_env_dict.get("LOG_NAME") + ".log"
+
+if __name__ == '__main__':
+    uvm_script_runner = uvm_script_runner()
+
+    argv1 = ''
+    argv2 = ''
+    argv3 = ''
+    argv4 = ''
+    argv5 = ''
+    argv6 = ''
+    argv7 = ''
+
+    if len(sys.argv) == 1 or len(sys.argv) > 8:
+        uvm_script_runner.print_help_info()
+        exit()
+    if len(sys.argv) >= 2 and (sys.argv[1] in ['-h', '--h', '-H', '--H', '-help', '--help']):
+        uvm_script_runner.print_help_info()
+        exit()
+
+    if len(sys.argv) >= 2:
+        argv1 = sys.argv[1]
+    if len(sys.argv) >= 3:
+        argv2 = sys.argv[2]
+    if len(sys.argv) >= 4:
+        argv3 = sys.argv[3]
+    if len(sys.argv) >= 5:
+        argv4 = sys.argv[4]
+    if len(sys.argv) >= 6:
+        argv5 = sys.argv[5]
+    if len(sys.argv) >= 7:
+        argv6 = sys.argv[6]
+    if len(sys.argv) >= 8:
+        argv7 = sys.argv[7]
+
+
+    uvm_script_runner.run_command_from_user(argv1, argv2, argv3, argv4, argv5, argv6, argv7, sys.argv)

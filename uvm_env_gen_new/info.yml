@@ -1,0 +1,60 @@
+project_name:
+    uart
+link_path:
+    /home/liucf/testsss
+
+
+# cpu_type is only used in SOC veri
+cpu_type:
+    M0 # supported CPU : M0/M0P/M3/STAR
+
+mst_agent_list:
+    apb:
+        count: 0
+        is_vip: True
+    APB2:
+        count: 0
+        is_vip: True
+    ahb:
+        count: 0
+        is_vip: False
+    aHb2:
+        count: 0
+        is_vip: False
+    axi:
+        count: 0
+        is_vip: True
+    i2c:
+        count: 5
+        is_vip: True
+    uart:
+        count: 0
+        is_vip: True
+    spi:
+        count: 0
+        is_vip: True
+    usb:
+        count: 2
+        is_vip: True
+slv_agent_list:
+    apb:
+        count: 0
+        is_vip: True
+    uart:
+        count: 0
+        is_vip: True
+    ahb3:
+        count: 0
+        is_vip: False
+refm_list:
+    uart:
+        count: 0
+scb_list:
+    uart:
+        count: 0
+cov_list:
+    uart_info:
+        count: 0
+sva_list:
+    uart_clk:
+        count: 0

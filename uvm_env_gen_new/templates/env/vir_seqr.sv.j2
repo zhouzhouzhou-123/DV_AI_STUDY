@@ -1,0 +1,45 @@
+{{ file_header }}
+
+`ifndef VIR_SEQR__SV
+`define VIR_SEQR__SV
+
+class vir_seqr extends uvm_sequencer;
+{% for m in members %}
+    {{ m.type_aligned }}{{ m.name }};
+{% endfor %}
+
+    `uvm_component_utils_begin(vir_seqr)
+{% for a in mst_agents_non_vip %}
+{% if a.count == 1 %}
+        `uvm_field_object(mo_{{ a.name }}_seqr, UVM_ALL_ON)
+{% else %}
+        `uvm_field_sarray_object(moa_{{ a.name }}_seqr, UVM_ALL_ON)
+{% endif %}
+{% endfor %}
+    `uvm_component_utils_end
+
+    extern          function            new         (string name = "vir_seqr", uvm_component parent = null);
+    extern  virtual function    void    build_phase (uvm_phase phase);
+
+endclass : vir_seqr
+
+function vir_seqr::new(string name = "vir_seqr", uvm_component parent = null);
+    super.new(name, parent);
+endfunction : new
+
+function void vir_seqr::build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    `uvm_info("", "This is build_phase", UVM_LOW)
+{% for a in mst_agents_non_vip %}
+{% if a.count == 1 %}
+    this.mo_{{ a.name }}_seqr = {{ a.name }}_seqr::type_id::create("mo_{{ a.name }}_seqr", this);
+{% else %}
+    foreach(this.moa_{{ a.name }}_seqr[index])
+    begin
+        this.moa_{{ a.name }}_seqr[index] = {{ a.name }}_seqr::type_id::create($sformatf("moa_{{ a.name }}_seqr[%0d]", index), this);
+    end
+{% endif %}
+{% endfor %}
+endfunction : build_phase
+
+`endif // VIR_SEQR__SV

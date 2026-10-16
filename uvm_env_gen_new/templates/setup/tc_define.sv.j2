@@ -1,0 +1,13 @@
+// --- used by m --- //
+// the define will be added by m during simulation automatically
+
+// tc with plusargs
+// tc=hello_world                      %   define=AAA+BB % plusargs=CC=2+DD=1
+// tc_index=0 % tc=smoke_tc            %  plusargs=CC=1
+// tc_index=1 % tc=smoke_tc            %  plusargs=CC=2
+
+// flash
+// tc=flash_bist_tc                    %   define=FLASH_BIST_ON
+
+//I2C
+// tc=../testcases/i2c1/i2c_tx_tc.sv   %   define=PA10+PA12

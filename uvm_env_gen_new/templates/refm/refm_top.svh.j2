@@ -1,0 +1,4 @@
+{{ file_header }}
+{% for r in refm_list %}
+`include "../env/refm/{{ r.name }}_refm.sv"
+{% endfor %}

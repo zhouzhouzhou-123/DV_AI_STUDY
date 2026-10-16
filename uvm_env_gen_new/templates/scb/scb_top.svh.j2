@@ -1,0 +1,4 @@
+{{ file_header }}
+{% for s in scb_list %}
+`include "../env/scb/{{ s.name }}_scb.sv"
+{% endfor %}

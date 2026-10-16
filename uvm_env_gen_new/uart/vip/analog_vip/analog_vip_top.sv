@@ -1,0 +1,1 @@
+`include "../vip/analog_vip/clock_model.sv"

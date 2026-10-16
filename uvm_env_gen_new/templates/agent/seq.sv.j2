@@ -1,0 +1,30 @@
+{{ file_header }}
+
+`ifndef {{ name_upper }}_SEQ__SV
+`define {{ name_upper }}_SEQ__SV
+
+class {{ name }}_seq extends uvm_sequence#({{ name }}_item);
+
+    {{ name }}_item mo_item;
+
+    `uvm_object_utils_begin({{ name }}_seq)
+        `uvm_field_object(mo_item, UVM_ALL_ON)
+    `uvm_object_utils_end
+
+    function new(string name = "{{ name }}_seq");
+        super.new(name);
+        mo_item = {{ name }}_item::type_id::create("mo_item");
+    endfunction : new
+
+    extern  virtual task body();
+
+endclass : {{ name }}_seq
+
+task {{ name }}_seq::body();
+    `uvm_info(get_type_name(), "body start!", UVM_MEDIUM)
+    // mo_item.print();
+    `uvm_send(mo_item);
+    `uvm_info(get_type_name(), "body done!", UVM_MEDIUM)
+endtask : body
+
+`endif // {{ name_upper }}_SEQ__SV

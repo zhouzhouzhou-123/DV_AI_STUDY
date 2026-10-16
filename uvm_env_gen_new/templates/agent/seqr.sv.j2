@@ -1,0 +1,16 @@
+{{ file_header }}
+
+`ifndef {{ name_upper }}_SEQR__SV
+`define {{ name_upper }}_SEQR__SV
+
+class {{ name }}_seqr extends uvm_sequencer#({{ name }}_item);
+    `uvm_component_utils_begin({{ name }}_seqr)
+    `uvm_component_utils_end
+
+    function new(string name = "{{ name }}_seqr", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction : new
+
+endclass : {{ name }}_seqr
+
+`endif // {{ name_upper }}_SEQR__SV

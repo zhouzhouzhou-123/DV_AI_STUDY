@@ -1,0 +1,64 @@
+{{ file_header }}
+
+`ifndef {{ name_upper }}_AGENT__SV
+`define {{ name_upper }}_AGENT__SV
+
+class {{ name }}_agent extends uvm_agent;
+
+    virtual {{ name }}_if mo_vif;
+
+    {{ name }}_driver    mo_drv;
+    {{ name }}_monitor   mo_mon;
+    {{ name }}_seqr      mo_seqr;
+    {{ name }}_agent_cfg mo_agent_cfg;
+
+    `uvm_component_utils_begin({{ name }}_agent)
+        `uvm_field_object(mo_drv, UVM_ALL_ON)
+        `uvm_field_object(mo_mon, UVM_ALL_ON)
+        `uvm_field_object(mo_seqr, UVM_ALL_ON)
+        `uvm_field_object(mo_agent_cfg, UVM_ALL_ON)
+    `uvm_component_utils_end
+
+    function new (string name = "{{ name }}_agent", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction : new
+
+    extern  function void build_phase(uvm_phase phase);
+    extern  function void connect_phase(uvm_phase phase);
+
+endclass : {{ name }}_agent
+
+function void {{ name }}_agent::build_phase(uvm_phase phase);
+    super.build_phase(phase);
+
+    `uvm_info(get_type_name(), "call build_phase", UVM_LOW)
+
+    if(!uvm_config_db#(virtual {{ name }}_if)::get(this, "*", "mo_vif", this.mo_vif))
+    begin
+        `uvm_fatal(get_type_name(), "fail get mo_vif")
+    end
+    if(!uvm_config_db#({{ name }}_agent_cfg)::get(this, "*", "mo_agent_cfg", this.mo_agent_cfg))
+    begin
+        `uvm_fatal(get_type_name(), "faill get mo_agent_cfg")
+    end
+
+    if(this.mo_agent_cfg.is_active == UVM_ACTIVE)
+    begin
+        this.mo_drv = {{ name }}_driver::type_id::create("mo_drv", this);
+        this.mo_seqr = {{ name }}_seqr::type_id::create("mo_seqr", this);
+    end
+    this.mo_mon = {{ name }}_monitor::type_id::create("mo_mon", this);
+endfunction : build_phase
+
+function void {{ name }}_agent::connect_phase(uvm_phase phase);
+    if(this.mo_agent_cfg.is_active == UVM_ACTIVE)
+    begin
+        this.mo_drv.mo_vif = this.mo_vif;
+        this.mo_drv.mo_agent_cfg = this.mo_agent_cfg;
+        this.mo_drv.seq_item_port.connect(this.mo_seqr.seq_item_export);
+    end
+    this.mo_mon.mo_vif = this.mo_vif;
+    this.mo_mon.mo_agent_cfg = this.mo_agent_cfg;
+endfunction : connect_phase
+
+`endif // {{ name_upper }}_AGENT__SV
